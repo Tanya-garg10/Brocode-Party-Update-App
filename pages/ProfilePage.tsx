@@ -1,0 +1,234 @@
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import Modal from '../components/common/Modal';
+import Input from '../components/common/Input';
+import Button from '../components/common/Button';
+import { Spot, Moment } from '../types';
+import { ArrowLeft, MoreHorizontal, Gift, Plus, Image as ImageIcon, X, Trash2, Camera, MapPin } from 'lucide-react';
+import * as ReactRouterDOM from 'react-router-dom';
+import { differenceInYears, format } from 'date-fns';
+import { motion, AnimatePresence } from 'framer-motion';
+import GlowButton from '../components/common/GlowButton';
+import { mockApi, getPlaceholderImage } from '../services/mockApi';
+import Textarea from '../components/common/Textarea';
+import AvatarPicker from '../components/common/AvatarPicker';
+
+type ProfileFormData = {
+    name: string;
+    phone: string;
+    location: string;
+    profile_pic_url: string;
+};
+
+const ProfileForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
+    const { profile, updateProfile } = useAuth();
+    const [formData, setFormData] = useState<ProfileFormData>({
+        name: profile?.name || '',
+        phone: profile?.phone || '',
+        location: profile?.location || '',
+        profile_pic_url: profile?.profile_pic_url || '',
+    });
+    const [errors, setErrors] = useState<Partial<Record<keyof ProfileFormData, string>>>({});
+    const [loading, setLoading] = useState(false);
+
+    const validateField = (name: keyof Omit<ProfileFormData, 'profile_pic_url'>, value: string): string => {
+        let error = '';
+        if (!value.trim()) {
+            error = `${name.charAt(0).toUpperCase() + name.slice(1)} is required.`;
+        }
+        return error;
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target as { name: keyof ProfileFormData, value: string };
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            await updateProfile(formData);
+            onSave();
+        } catch (err) {
+             console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-6">
+            <AvatarPicker label="BRO-DENTITY" initialValue={formData.profile_pic_url} onChange={(url) => setFormData(p => ({...p, profile_pic_url: url}))} />
+            <Input label="Name" name="name" value={formData.name} onChange={handleChange} icon={<Plus size={16}/>} />
+            <Input label="Handle" name="location" value={formData.location} onChange={handleChange} icon={<MapPin size={16}/>} />
+            <Button type="submit" disabled={loading} className="w-full py-4 font-black uppercase tracking-widest">Update Profile</Button>
+        </form>
+    );
+};
+
+const MomentForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
+    const { user } = useAuth();
+    const [caption, setCaption] = useState('');
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => setImagePreview(reader.result as string);
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!imagePreview || !user) return;
+        setLoading(true);
+        try {
+            await mockApi.createMoment({ user_id: user.id, image_url: imagePreview, caption });
+            onSave();
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="flex flex-col items-center gap-4">
+                {imagePreview ? (
+                    <div className="relative w-full aspect-square rounded-3xl overflow-hidden border-2 border-indigo-500/30">
+                        <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
+                        <button onClick={() => setImagePreview(null)} className="absolute top-4 right-4 bg-black/50 p-2 rounded-full"><X size={20}/></button>
+                    </div>
+                ) : (
+                    <label className="w-full aspect-square rounded-3xl border-2 border-dashed border-zinc-700 bg-zinc-900/50 flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-800 transition-colors">
+                        <Camera size={48} className="text-zinc-500 mb-4" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Capture the Moment</span>
+                        <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                    </label>
+                )}
+            </div>
+            <Textarea label="CAPTION" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="What went down?" />
+            <Button type="submit" disabled={loading || !imagePreview} className="w-full py-4">SHARE WITH SQUAD</Button>
+        </form>
+    );
+};
+
+const ProfilePage: React.FC = () => {
+    const { profile, user } = useAuth();
+    const navigate = ReactRouterDOM.useNavigate();
+    const [activeTab, setActiveTab] = useState<'Details' | 'Moments'>('Moments');
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isMomentModalOpen, setIsMomentModalOpen] = useState(false);
+    const [trips, setTrips] = useState<Spot[]>([]);
+    const [moments, setMoments] = useState<Moment[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchData = useCallback(async () => {
+        if (!user) return;
+        setLoading(true);
+        const [spotsData, momentsData] = await Promise.all([
+            mockApi.getUserSpots(user.id),
+            mockApi.getMoments(user.id),
+        ]);
+        setTrips(spotsData || []);
+        setMoments(momentsData || []);
+        setLoading(false);
+    }, [user]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    if (!profile) return null;
+
+    return (
+        <div className="max-w-4xl mx-auto pb-32">
+            <header className="flex flex-col items-center pt-8 pb-12 relative">
+                <div className="absolute top-0 right-0">
+                    <button onClick={() => setIsEditModalOpen(true)} className="p-3 bg-zinc-900 rounded-2xl border border-white/5 text-zinc-400">
+                        <MoreHorizontal size={20} />
+                    </button>
+                </div>
+                
+                <div className="relative mb-6">
+                    <div className="absolute -inset-4 bg-gradient-to-tr from-indigo-500 to-pink-500 rounded-full blur-2xl opacity-20" />
+                    <img src={profile.profile_pic_url} className="w-32 h-32 rounded-full border-4 border-[#111] shadow-2xl object-cover relative z-10" alt={profile.name} />
+                </div>
+                
+                <h1 className="text-4xl font-black text-white tracking-tighter">@{profile.username}</h1>
+                <p className="text-zinc-500 font-bold uppercase tracking-widest text-[10px] mt-2">{profile.name} • {profile.location}</p>
+            </header>
+
+            <div className="flex bg-[#111] p-1.5 rounded-2xl mb-10 border border-white/5">
+                {(['Moments', 'Details'] as const).map(tab => (
+                    <button 
+                        key={tab} 
+                        onClick={() => setActiveTab(tab)}
+                        className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all ${activeTab === tab ? 'bg-white text-black' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                        {tab}
+                    </button>
+                ))}
+            </div>
+
+            <main>
+                <AnimatePresence mode="wait">
+                    {activeTab === 'Moments' ? (
+                        <motion.div key="moments" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <button 
+                                onClick={() => setIsMomentModalOpen(true)}
+                                className="aspect-square bg-zinc-900 rounded-3xl border-2 border-dashed border-zinc-800 flex flex-col items-center justify-center text-zinc-600 hover:text-indigo-400 hover:border-indigo-500/30 transition-all group"
+                            >
+                                <Plus size={32} className="group-hover:scale-110 transition-transform"/>
+                                <span className="text-[9px] font-black uppercase tracking-widest mt-2">Add Intel</span>
+                            </button>
+                            {moments.map(moment => (
+                                <div key={moment.id} className="relative aspect-square rounded-3xl overflow-hidden group border border-white/5">
+                                    <img src={moment.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="Moment" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end">
+                                        <p className="text-xs font-bold line-clamp-2">{moment.caption}</p>
+                                        <span className="text-[8px] font-black uppercase tracking-widest mt-1 text-zinc-400">{format(new Date(moment.created_at), 'MMM dd')}</span>
+                                    </div>
+                                    <button onClick={() => mockApi.deleteMoment(moment.id).then(fetchData)} className="absolute top-3 right-3 p-2 bg-black/50 backdrop-blur-md rounded-xl text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Trash2 size={14}/>
+                                    </button>
+                                </div>
+                            ))}
+                        </motion.div>
+                    ) : (
+                        <motion.div key="details" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                            <div className="bg-[#111] p-8 rounded-[2.5rem] border border-white/5">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-6">Personal Intel</h3>
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-center py-4 border-b border-white/5">
+                                        <span className="text-[10px] font-black text-zinc-500 uppercase">Squad Status</span>
+                                        <span className="px-3 py-1 bg-green-500/10 text-green-400 text-[10px] font-black rounded-full uppercase border border-green-500/20 tracking-widest">Active Operative</span>
+                                    </div>
+                                    <div className="flex justify-between items-center py-4 border-b border-white/5">
+                                        <span className="text-[10px] font-black text-zinc-500 uppercase">Deployment Base</span>
+                                        <span className="text-sm font-bold text-white uppercase">{profile.location}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center py-4">
+                                        <span className="text-[10px] font-black text-zinc-500 uppercase">Mission Count</span>
+                                        <span className="text-sm font-bold text-white">{trips.length} Successful Ops</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </main>
+
+            <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="MODIFY OPERATIVE">
+                <ProfileForm onSave={() => { setIsEditModalOpen(false); fetchData(); }} />
+            </Modal>
+            <Modal isOpen={isMomentModalOpen} onClose={() => setIsMomentModalOpen(false)} title="BRO-MOMENT">
+                <MomentForm onSave={() => { setIsMomentModalOpen(false); fetchData(); }} />
+            </Modal>
+        </div>
+    );
+};
+
+export default ProfilePage;
