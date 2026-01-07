@@ -20,7 +20,7 @@ const DrinksPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isPaid, setIsPaid] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
-  
+
   // UI State
   const [activeSection, setActiveSection] = useState<'browse' | 'checkout' | 'detail'>('browse');
   const [activeType, setActiveType] = useState<'drinks' | 'food' | 'cigarette'>('drinks');
@@ -28,7 +28,7 @@ const DrinksPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<DrinkBrand | Drink | Cigarette | Food | null>(null);
   const [orderComment, setOrderComment] = useState("");
-  
+
   // Modals
   const [isDrinkModalOpen, setIsDrinkModalOpen] = useState(false);
   const [isCigaretteModalOpen, setIsCigaretteModalOpen] = useState(false);
@@ -48,11 +48,12 @@ const DrinksPage: React.FC = () => {
   const drinkImageInputRef = useRef<HTMLInputElement>(null);
   const cigaretteImageInputRef = useRef<HTMLInputElement>(null);
   const foodImageInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Admin price editing
   const [editingPriceItem, setEditingPriceItem] = useState<{ type: 'drink' | 'food' | 'cigarette'; id: string } | null>(null);
   const [priceInput, setPriceInput] = useState("");
-  
+  const [currentUserUUID, setCurrentUserUUID] = useState<string | null>(null);
+
   const isAdmin = profile?.role === UserRole.ADMIN;
 
   // Helper function to get UUID from profile ID
@@ -67,7 +68,7 @@ const DrinksPage: React.FC = () => {
 
     const cleanPhone = profile.phone ? profile.phone.replace(/\D/g, '') : '';
     let dbProfile = null;
-    
+
     if (cleanPhone) {
       const { data, error } = await supabase
         .from('profiles')
@@ -76,7 +77,7 @@ const DrinksPage: React.FC = () => {
         .maybeSingle();
       if (!error && data) dbProfile = data;
     }
-    
+
     if (!dbProfile && profile.email) {
       const { data, error } = await supabase
         .from('profiles')
@@ -85,7 +86,7 @@ const DrinksPage: React.FC = () => {
         .maybeSingle();
       if (!error && data) dbProfile = data;
     }
-    
+
     if (!dbProfile && profile.username) {
       const { data, error } = await supabase
         .from('profiles')
@@ -99,12 +100,29 @@ const DrinksPage: React.FC = () => {
     return profileId;
   }, [profile]);
 
+  // Fetch current user's UUID on mount
+  useEffect(() => {
+    const fetchUserUUID = async () => {
+      if (profile) {
+        try {
+          const uuid = await getUserIdAsUUID(profile.id);
+          setCurrentUserUUID(uuid);
+          console.log('✅ Current user UUID set:', uuid, 'from profile.id:', profile.id);
+        } catch (err) {
+          console.error('Error getting user UUID:', err);
+          setCurrentUserUUID(profile.id);
+        }
+      }
+    };
+    fetchUserUUID();
+  }, [profile, getUserIdAsUUID]);
+
   const fetchData = useCallback(async () => {
     if (!profile) {
       setLoading(false);
       return;
     }
-    
+
     try {
       setPageError(null);
       const spotData = await spotService.getUpcomingSpot();
@@ -126,13 +144,17 @@ const DrinksPage: React.FC = () => {
 
         if (paidStatus) {
           try {
-            const [drinksData, cigarettesData, brandsData, selectionsData] = await Promise.all([
+            const [drinksData, cigarettesData, foodsData, brandsData, selectionsData] = await Promise.all([
               drinkService.getDrinks(spotData.id).catch((err) => {
                 console.error('Error fetching drinks:', err);
                 return [];
               }),
               cigaretteService.getCigarettes(spotData.id).catch((err) => {
                 console.error('Error fetching cigarettes:', err);
+                return [];
+              }),
+              foodService.getFoods(spotData.id).catch((err) => {
+                console.error('Error fetching foods:', err);
                 return [];
               }),
               drinkBrandService.getDrinkBrands().catch((err) => {
@@ -146,6 +168,7 @@ const DrinksPage: React.FC = () => {
             ]);
             setDrinks(drinksData || []);
             setCigarettes(cigarettesData || []);
+            setFoods(foodsData || []);
             setDrinkBrands(brandsData || []);
             setUserSelections(selectionsData || []);
           } catch (fetchError: any) {
@@ -176,10 +199,10 @@ const DrinksPage: React.FC = () => {
       setDrinkBrands([]);
       setUserSelections([]);
       setIsPaid(false);
-      
-      if (error.message?.includes('does not exist') || 
-          error.message?.includes('relation') ||
-          error.code === '42P01') {
+
+      if (error.message?.includes('does not exist') ||
+        error.message?.includes('relation') ||
+        error.code === '42P01') {
         setPageError('Database tables not found. Please run migration SQL files in Supabase.');
       } else {
         setPageError(error.message || 'Something went wrong while loading drinks section.');
@@ -280,17 +303,26 @@ const DrinksPage: React.FC = () => {
 
     try {
       const userId = await getUserIdAsUUID(profile.id);
-      await drinkService.createDrink({
+      const created = await drinkService.createDrink({
         spot_id: spot.id,
         name: newDrinkName.trim(),
         image_url: newDrinkImage || undefined,
         suggested_by: userId,
       });
+
+      // Add to local state so it appears immediately
+      setDrinks((prev) => {
+        // avoid duplicates
+        if (!created) return prev || [];
+        return [...(prev || []), created];
+      });
+
       setNewDrinkName("");
       setNewDrinkImage("");
       setNewDrinkImagePreview(null);
       setIsDrinkModalOpen(false);
-      await fetchData();
+      // still refresh full data in background
+      fetchData().catch((err) => console.error('fetchData after createDrink failed', err));
     } catch (error: any) {
       console.error('Error adding drink:', error);
       alert(`Failed to add drink: ${error.message || 'Please try again.'}`);
@@ -306,17 +338,23 @@ const DrinksPage: React.FC = () => {
 
     try {
       const userId = await getUserIdAsUUID(profile.id);
-      await cigaretteService.createCigarette({
+      const created = await cigaretteService.createCigarette({
         spot_id: spot.id,
         name: newCigaretteName.trim(),
         image_url: newCigaretteImage,
         added_by: userId,
       });
+
+      setCigarettes((prev) => {
+        if (!created) return prev || [];
+        return [...(prev || []), created];
+      });
+
       setNewCigaretteImage(null);
       setNewCigaretteImagePreview(null);
       setNewCigaretteName("");
       setIsCigaretteModalOpen(false);
-      await fetchData();
+      fetchData().catch((err) => console.error('fetchData after createCigarette failed', err));
     } catch (error: any) {
       console.error('Error adding cigarette:', error);
       alert(`Failed to add cigarette: ${error.message || 'Please try again.'}`);
@@ -329,17 +367,23 @@ const DrinksPage: React.FC = () => {
 
     try {
       const userId = await getUserIdAsUUID(profile.id);
-      await foodService.createFood({
+      const created = await foodService.createFood({
         spot_id: spot.id,
         name: newFoodName.trim(),
         image_url: newFoodImage,
         added_by: userId,
       });
+
+      setFoods((prev) => {
+        if (!created) return prev || [];
+        return [...(prev || []), created];
+      });
+
       setNewFoodImage(null);
       setNewFoodImagePreview(null);
       setNewFoodName("");
       setIsFoodModalOpen(false);
-      await fetchData();
+      fetchData().catch((err) => console.error('fetchData after createFood failed', err));
     } catch (error: any) {
       console.error('Error adding food:', error);
       alert(`Failed to add food: ${error.message || 'Please try again.'}`);
@@ -414,7 +458,7 @@ const DrinksPage: React.FC = () => {
           }
         }
       }
-      
+
       // Reset form
       setEditingItem(null);
       setIsEditModalOpen(false);
@@ -434,13 +478,30 @@ const DrinksPage: React.FC = () => {
     }
   };
 
-  const isUserOwner = (item: Drink | Cigarette | Food): boolean => {
-    if (!profile) return false;
-    const userId = profile.id;
-    if ('suggested_by' in item) return item.suggested_by === userId;
-    if ('added_by' in item) return item.added_by === userId;
+  const isUserOwner = useCallback((item: Drink | Cigarette | Food): boolean => {
+    if (!currentUserUUID) {
+      return false;
+    }
+
+    // Check if the item's creator matches the current user
+    if ('suggested_by' in item) {
+      // For drinks
+      const isOwner = item.suggested_by === currentUserUUID;
+      if (isOwner) {
+        console.log('✅ User owns this drink:', item.id);
+      }
+      return isOwner;
+    }
+    if ('added_by' in item) {
+      // For cigarettes and food
+      const isOwner = item.added_by === currentUserUUID;
+      if (isOwner) {
+        console.log('✅ User owns this item:', item.id);
+      }
+      return isOwner;
+    }
     return false;
-  };
+  }, [currentUserUUID]);
 
   const handleDeleteCigarette = async (cigaretteId: string) => {
     if (!cigaretteId || !confirm("Are you sure you want to delete this cigarette?")) return;
@@ -535,7 +596,7 @@ const DrinksPage: React.FC = () => {
 
   const handleUpdatePrice = async (itemId: string, type: 'drink' | 'food' | 'cigarette', price: number) => {
     if (!isAdmin) return;
-    
+
     try {
       if (type === 'drink') {
         await drinkService.updateDrink(itemId, { price });
@@ -562,20 +623,20 @@ const DrinksPage: React.FC = () => {
   const cartItemCount = userSelections.reduce((sum, sel) => sum + sel.quantity, 0);
 
   const categories = ['all', 'wine', 'beer', 'spirits'];
-  const filteredBrands = selectedCategory === 'all' 
+  const filteredBrands = selectedCategory === 'all'
     ? drinkBrands.filter(b => activeType === 'drinks' && b.category !== 'soft_drink')
     : drinkBrands.filter(b => {
-        if (activeType !== 'drinks') return false;
-        const categoryMap: Record<string, string[]> = {
-          'wine': ['wine'],
-          'beer': ['beer'],
-          'spirits': ['whiskey', 'vodka', 'rum', 'cocktail']
-        };
-        return categoryMap[selectedCategory]?.includes(b.category) || false;
-      });
+      if (activeType !== 'drinks') return false;
+      const categoryMap: Record<string, string[]> = {
+        'wine': ['wine'],
+        'beer': ['beer'],
+        'spirits': ['whiskey', 'vodka', 'rum', 'cocktail']
+      };
+      return categoryMap[selectedCategory]?.includes(b.category) || false;
+    });
 
   // Filter by search query
-  const searchFilteredBrands = filteredBrands.filter(brand => 
+  const searchFilteredBrands = filteredBrands.filter(brand =>
     brand.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     brand.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -622,8 +683,8 @@ const DrinksPage: React.FC = () => {
             }}>
               Try Again
             </Button>
-            <Button 
-              variant="secondary" 
+            <Button
+              variant="secondary"
               onClick={() => window.location.reload()}
               className="ml-2"
             >
@@ -695,11 +756,10 @@ const DrinksPage: React.FC = () => {
               <button
                 key={type}
                 onClick={() => setActiveType(type)}
-                className={`px-6 py-2 rounded-full font-medium transition-colors ${
-                  activeType === type
-                    ? 'bg-white text-black'
-                    : 'bg-zinc-900 text-zinc-400 border border-zinc-800'
-                }`}
+                className={`px-6 py-2 rounded-full font-medium transition-colors ${activeType === type
+                  ? 'bg-white text-black'
+                  : 'bg-zinc-900 text-zinc-400 border border-zinc-800'
+                  }`}
               >
                 {type.charAt(0).toUpperCase() + type.slice(1)}
               </button>
@@ -713,11 +773,10 @@ const DrinksPage: React.FC = () => {
                 <button
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
-                  className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-                    selectedCategory === cat
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-zinc-900 text-zinc-400 border border-zinc-800'
-                  }`}
+                  className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${selectedCategory === cat
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-zinc-900 text-zinc-400 border border-zinc-800'
+                    }`}
                 >
                   {cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1)}
                 </button>
@@ -738,7 +797,7 @@ const DrinksPage: React.FC = () => {
                       if (!groupedByUser[username]) groupedByUser[username] = [];
                       groupedByUser[username].push(drink);
                     });
-                    
+
                     return Object.entries(groupedByUser).map(([username, userDrinks]) => (
                       <div key={username} className="space-y-2">
                         <h3 className="text-lg font-semibold text-zinc-300">{username}</h3>
@@ -756,18 +815,17 @@ const DrinksPage: React.FC = () => {
                               </div>
                               <h3 className="font-semibold text-sm mb-2">{drink.name}</h3>
                               {editingPriceItem?.id === drink.id && editingPriceItem?.type === 'drink' ? (
-                                <div className="flex gap-2">
-                                  <Input
-                                    label=""
+                                <div className="flex flex-col sm:flex-row gap-2 w-full">
+                                  <input
                                     type="number"
                                     value={priceInput}
                                     onChange={(e) => setPriceInput(e.target.value)}
                                     placeholder="Price"
-                                    className="text-sm"
+                                    className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white text-sm focus:outline-none focus:border-indigo-500"
                                   />
                                   <button
                                     onClick={() => handleUpdatePrice(drink.id, 'drink', parseFloat(priceInput))}
-                                    className="px-3 py-1 bg-indigo-600 rounded text-sm"
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-sm font-medium transition-colors"
                                   >
                                     Save
                                   </button>
@@ -775,15 +833,26 @@ const DrinksPage: React.FC = () => {
                               ) : (
                                 <div className="flex items-center justify-between">
                                   <span className="text-sm text-zinc-400">{drink.price ? `₹${drink.price}` : 'No price'}</span>
-                                  <button
-                                    onClick={() => {
-                                      setEditingPriceItem({ type: 'drink', id: drink.id });
-                                      setPriceInput(drink.price?.toString() || '');
-                                    }}
-                                    className="text-indigo-400 text-sm hover:text-indigo-300"
-                                  >
-                                    Set Price
-                                  </button>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setEditingPriceItem({ type: 'drink', id: drink.id });
+                                        setPriceInput(drink.price?.toString() || '');
+                                      }}
+                                      className="text-indigo-400 text-sm hover:text-indigo-300"
+                                    >
+                                      Set Price
+                                    </button>
+                                    {isUserOwner(drink) && (
+                                      <button
+                                        onClick={() => handleDeleteDrink(drink.id)}
+                                        className="text-red-400 hover:text-red-300 transition-colors"
+                                        title="Delete"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </Card>
@@ -794,7 +863,7 @@ const DrinksPage: React.FC = () => {
                   })()}
                 </div>
               )}
-              
+
               {activeType === 'food' && (
                 <div className="space-y-4">
                   {(() => {
@@ -804,7 +873,7 @@ const DrinksPage: React.FC = () => {
                       if (!groupedByUser[username]) groupedByUser[username] = [];
                       groupedByUser[username].push(food);
                     });
-                    
+
                     return Object.entries(groupedByUser).map(([username, userFoods]) => (
                       <div key={username} className="space-y-2">
                         <h3 className="text-lg font-semibold text-zinc-300">{username}</h3>
@@ -821,23 +890,22 @@ const DrinksPage: React.FC = () => {
                                 )}
                               </div>
                               <h3 className="font-semibold text-sm mb-2">
-                                {food.image_url?.includes('/images/food/') 
+                                {food.image_url?.includes('/images/food/')
                                   ? food.image_url.split('/').pop()?.replace(/\.[^/.]+$/, '') || food.name
                                   : food.name}
                               </h3>
                               {editingPriceItem?.id === food.id && editingPriceItem?.type === 'food' ? (
-                                <div className="flex gap-2">
-                                  <Input
-                                    label=""
+                                <div className="flex flex-col sm:flex-row gap-2 w-full">
+                                  <input
                                     type="number"
                                     value={priceInput}
                                     onChange={(e) => setPriceInput(e.target.value)}
                                     placeholder="Price"
-                                    className="text-sm"
+                                    className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white text-sm focus:outline-none focus:border-indigo-500"
                                   />
                                   <button
                                     onClick={() => handleUpdatePrice(food.id, 'food', parseFloat(priceInput))}
-                                    className="px-3 py-1 bg-indigo-600 rounded text-sm"
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-sm font-medium transition-colors"
                                   >
                                     Save
                                   </button>
@@ -845,15 +913,26 @@ const DrinksPage: React.FC = () => {
                               ) : (
                                 <div className="flex items-center justify-between">
                                   <span className="text-sm text-zinc-400">{food.price ? `₹${food.price}` : 'No price'}</span>
-                                  <button
-                                    onClick={() => {
-                                      setEditingPriceItem({ type: 'food', id: food.id });
-                                      setPriceInput(food.price?.toString() || '');
-                                    }}
-                                    className="text-indigo-400 text-sm hover:text-indigo-300"
-                                  >
-                                    Set Price
-                                  </button>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setEditingPriceItem({ type: 'food', id: food.id });
+                                        setPriceInput(food.price?.toString() || '');
+                                      }}
+                                      className="text-indigo-400 text-sm hover:text-indigo-300"
+                                    >
+                                      Set Price
+                                    </button>
+                                    {isUserOwner(food) && (
+                                      <button
+                                        onClick={() => handleDeleteFood(food.id)}
+                                        className="text-red-400 hover:text-red-300 transition-colors"
+                                        title="Delete"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </Card>
@@ -864,7 +943,7 @@ const DrinksPage: React.FC = () => {
                   })()}
                 </div>
               )}
-              
+
               {activeType === 'cigarette' && (
                 <div className="space-y-4">
                   {(() => {
@@ -874,7 +953,7 @@ const DrinksPage: React.FC = () => {
                       if (!groupedByUser[username]) groupedByUser[username] = [];
                       groupedByUser[username].push(cig);
                     });
-                    
+
                     return Object.entries(groupedByUser).map(([username, userCigs]) => (
                       <div key={username} className="space-y-2">
                         <h3 className="text-lg font-semibold text-zinc-300">{username}</h3>
@@ -892,18 +971,17 @@ const DrinksPage: React.FC = () => {
                               </div>
                               <h3 className="font-semibold text-sm mb-2">{cig.name || 'Cigarette Pack'}</h3>
                               {editingPriceItem?.id === cig.id && editingPriceItem?.type === 'cigarette' ? (
-                                <div className="flex gap-2">
-                                  <Input
-                                    label=""
+                                <div className="flex flex-col sm:flex-row gap-2 w-full">
+                                  <input
                                     type="number"
                                     value={priceInput}
                                     onChange={(e) => setPriceInput(e.target.value)}
                                     placeholder="Price"
-                                    className="text-sm"
+                                    className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white text-sm focus:outline-none focus:border-indigo-500"
                                   />
                                   <button
                                     onClick={() => handleUpdatePrice(cig.id, 'cigarette', parseFloat(priceInput))}
-                                    className="px-3 py-1 bg-indigo-600 rounded text-sm"
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-sm font-medium transition-colors"
                                   >
                                     Save
                                   </button>
@@ -911,15 +989,26 @@ const DrinksPage: React.FC = () => {
                               ) : (
                                 <div className="flex items-center justify-between">
                                   <span className="text-sm text-zinc-400">{cig.price ? `₹${cig.price}` : 'No price'}</span>
-                                  <button
-                                    onClick={() => {
-                                      setEditingPriceItem({ type: 'cigarette', id: cig.id });
-                                      setPriceInput(cig.price?.toString() || '');
-                                    }}
-                                    className="text-indigo-400 text-sm hover:text-indigo-300"
-                                  >
-                                    Set Price
-                                  </button>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setEditingPriceItem({ type: 'cigarette', id: cig.id });
+                                        setPriceInput(cig.price?.toString() || '');
+                                      }}
+                                      className="text-indigo-400 text-sm hover:text-indigo-300"
+                                    >
+                                      Set Price
+                                    </button>
+                                    {isUserOwner(cig) && (
+                                      <button
+                                        onClick={() => handleDeleteCigarette(cig.id)}
+                                        className="text-red-400 hover:text-red-300 transition-colors"
+                                        title="Delete"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </Card>
@@ -933,105 +1022,144 @@ const DrinksPage: React.FC = () => {
             </div>
           )}
 
-          {/* User View - Clean, No Prices by Default, Only Show Items with Prices */}
+          {/* User View - Show All Items with User Info */}
           {!isAdmin && (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {activeType === 'drinks' && drinks.filter(d => d.price !== undefined && d.price !== null).map(drink => (
-              <div
-                key={drink.id}
-                onClick={() => handleProductClick(drink)}
-                className="cursor-pointer"
-              >
-                <Card className="p-4 bg-zinc-900 border-zinc-800 hover:border-indigo-500/50 transition-colors">
-                  <div className="relative mb-3">
-                    {drink.image_url ? (
-                      <img src={drink.image_url} alt={drink.name} className="w-full h-32 object-cover rounded-lg" />
-                    ) : (
-                      <div className="w-full h-32 bg-zinc-800 rounded-lg flex items-center justify-center">
-                        <Wine size={32} className="text-zinc-500" />
-                      </div>
-                    )}
-                  </div>
-                  <h3 className="font-semibold text-sm mb-1 line-clamp-1">{drink.name}</h3>
-                  <p className="text-sm text-indigo-400">₹{drink.price}</p>
-                </Card>
-              </div>
-            ))}
-            
-            {activeType === 'drinks' && drinks.filter(d => d.price !== undefined && d.price !== null).length === 0 && (
-              <div className="col-span-full text-center py-12">
-                <p className="text-zinc-400">No drinks available. Add drinks to get started!</p>
-              </div>
-            )}
-
-            {activeType === 'cigarette' && cigarettes.filter(c => c && c.id && c.image_url && (isAdmin || (c.price !== undefined && c.price !== null))).map((cigarette) => (
-              <div
-                key={cigarette.id}
-                onClick={() => handleProductClick(cigarette)}
-                className="cursor-pointer"
-              >
-                <Card 
-                  className="p-4 bg-zinc-900 border-zinc-800 hover:border-indigo-500/50 transition-colors"
+              {activeType === 'drinks' && drinks.map(drink => (
+                <div
+                  key={drink.id}
+                  className="relative"
                 >
-                  <div className="relative mb-3">
-                    <img
-                      src={cigarette.image_url}
-                      alt="Cigarette"
-                      className="w-full h-32 object-cover rounded-lg"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                      }}
-                    />
-                  </div>
-                  <h3 className="font-semibold text-sm mb-1 line-clamp-1">{cigarette.name || 'Cigarette Pack'}</h3>
-                  {cigarette.price && <p className="text-sm text-indigo-400">₹{cigarette.price}</p>}
-                </Card>
-              </div>
-            ))}
+                  <Card className="p-4 bg-zinc-900 border-zinc-800 hover:border-indigo-500/50 transition-colors">
+                    <div className="relative mb-3">
+                      {drink.image_url ? (
+                        <img src={drink.image_url} alt={drink.name} className="w-full h-32 object-cover rounded-lg" />
+                      ) : (
+                        <div className="w-full h-32 bg-zinc-800 rounded-lg flex items-center justify-center">
+                          <Wine size={32} className="text-zinc-500" />
+                        </div>
+                      )}
+                      {isUserOwner(drink) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteDrink(drink.id);
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-red-500/80 hover:bg-red-600 rounded-full text-white transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <h3 className="font-semibold text-sm mb-1 line-clamp-1">{drink.name}</h3>
+                    <p className="text-xs text-zinc-500 mb-1">by {drink.profiles?.name || 'Unknown'}</p>
+                    {drink.price && <p className="text-sm text-indigo-400">\u20b9{drink.price}</p>}
+                    {!drink.price && <p className="text-xs text-zinc-600">Price not set</p>}
+                  </Card>
+                </div>
+              ))}
 
-            {activeType === 'food' && foods.filter(f => f && f.id && f.image_url && (isAdmin || (f.price !== undefined && f.price !== null))).map((food) => (
-              <div
-                key={food.id}
-                onClick={() => handleProductClick(food)}
-                className="cursor-pointer"
-              >
-                <Card 
-                  className="p-4 bg-zinc-900 border-zinc-800 hover:border-indigo-500/50 transition-colors"
+              {activeType === 'drinks' && drinks.length === 0 && (
+                <div className="col-span-full text-center py-12">
+                  <p className="text-zinc-400">No drinks available. Add drinks to get started!</p>
+                </div>
+              )}
+
+              {activeType === 'cigarette' && cigarettes.map((cigarette) => (
+                <div
+                  key={cigarette.id}
+                  className="relative"
                 >
-                  <div className="relative mb-3">
-                    <img
-                      src={food.image_url}
-                      alt={food.name}
-                      className="w-full h-32 object-cover rounded-lg"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                      }}
-                    />
-                  </div>
-                  <h3 className="font-semibold text-sm mb-1 line-clamp-1">
-                    {food.image_url?.includes('/images/food/') 
-                      ? food.image_url.split('/').pop()?.replace(/\.[^/.]+$/, '') || food.name
-                      : food.name}
-                  </h3>
-                  {food.price && <p className="text-sm text-indigo-400">₹{food.price}</p>}
-                </Card>
-              </div>
-            ))}
-            
-            {activeType === 'cigarette' && cigarettes.filter(c => c && c.id && c.image_url && (isAdmin || (c.price !== undefined && c.price !== null))).length === 0 && (
-              <div className="col-span-full text-center py-12">
-                <p className="text-zinc-400">No cigarettes available. Add cigarettes to get started!</p>
-              </div>
-            )}
-            
-            {activeType === 'food' && foods.filter(f => f && f.id && f.image_url && (isAdmin || (f.price !== undefined && f.price !== null))).length === 0 && (
-              <div className="col-span-full text-center py-12">
-                <p className="text-zinc-400">No food available. Add food to get started!</p>
-              </div>
-            )}
-          </div>
+                  <Card
+                    className="p-4 bg-zinc-900 border-zinc-800 hover:border-indigo-500/50 transition-colors"
+                  >
+                    <div className="relative mb-3">
+                      <img
+                        src={cigarette.image_url}
+                        alt="Cigarette"
+                        className="w-full h-32 object-cover rounded-lg"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
+                      />
+                      {isUserOwner(cigarette) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCigarette(cigarette.id);
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-red-500/80 hover:bg-red-600 rounded-full text-white transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <h3 className="font-semibold text-sm mb-1 line-clamp-1">{cigarette.name || 'Cigarette Pack'}</h3>
+                    <p className="text-xs text-zinc-500 mb-1">by {cigarette.profiles?.name || 'Unknown'}</p>
+                    {cigarette.price && <p className="text-sm text-indigo-400">₹{cigarette.price}</p>}
+                    {!cigarette.price && <p className="text-xs text-zinc-600">Price not set</p>}
+                  </Card>
+                </div>
+              ))}
+
+              {activeType === 'food' && foods.map((food) => (
+                <div
+                  key={food.id}
+                  className="relative"
+                >
+                  <Card
+                    className="p-4 bg-zinc-900 border-zinc-800 hover:border-indigo-500/50 transition-colors"
+                  >
+                    <div className="relative mb-3">
+                      <img
+                        src={food.image_url}
+                        alt={food.name}
+                        className="w-full h-32 object-cover rounded-lg"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
+                      />
+                      {isUserOwner(food) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFood(food.id);
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-red-500/80 hover:bg-red-600 rounded-full text-white transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <h3 className="font-semibold text-sm mb-1 line-clamp-1">
+                      {food.image_url?.includes('/images/food/')
+                        ? food.image_url.split('/').pop()?.replace(/\.[^/.]+$/, '') || food.name
+                        : food.name}
+                    </h3>
+                    <p className="text-xs text-zinc-500 mb-1">by {food.profiles?.name || 'Unknown'}</p>
+                    {food.price && <p className="text-sm text-indigo-400">₹{food.price}</p>}
+                    {!food.price && <p className="text-xs text-zinc-600">Price not set</p>}
+                  </Card>
+                </div>
+              ))}
+
+              {activeType === 'cigarette' && cigarettes.length === 0 && (
+                <div className="col-span-full text-center py-12">
+                  <p className="text-zinc-400">No cigarettes available. Add cigarettes to get started!</p>
+                </div>
+              )}
+
+              {activeType === 'food' && foods.length === 0 && (
+                <div className="col-span-full text-center py-12">
+                  <p className="text-zinc-400">No food available. Add food to get started!</p>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Bottom Action Button */}
@@ -1064,7 +1192,7 @@ const DrinksPage: React.FC = () => {
               </Button>
             )}
           </div>
-          
+
           {/* Cart Button */}
           {cartItemCount > 0 && (
             <div className="fixed bottom-4 right-4 z-20">
@@ -1101,7 +1229,7 @@ const DrinksPage: React.FC = () => {
               placeholder="e.g., Kingfisher, Old Monk, etc."
               required
             />
-            
+
             <div>
               <label className="block text-sm font-medium mb-2">Drink Image</label>
               {newDrinkImagePreview ? (
@@ -1142,12 +1270,12 @@ const DrinksPage: React.FC = () => {
                 placeholder="https://example.com/drink-image.jpg"
                 className="mt-2"
               />
-              
+
               {/* Default Drink Images */}
               <div className="mt-4">
                 <p className="text-sm text-zinc-400 mb-2">Or select from default images:</p>
                 <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
-                  {['bacardihot.jfif', 'brocodebeer.jfif', 'budvisorbeer.jfif', 'junohot.jfif', 'kingfisherbeer.jfif', 'Mansionhousehot.jfif', 'omhot.jfif', 'simbabeer.jfif', 'tuborgbeer.jpg'].map((imgName) => (
+                  {['Bacardi.jfif', 'Brocode Beer.jfif', 'Budweiser Beer.jfif', 'Bullet Beer.jfif', 'Carlsberg Beer.jfif', 'Juno.jfif', 'Kingfisher Beer.jfif', 'Manssionhouse.jfif', 'Old Monk.jfif', 'Simba Beer.jfif', 'Tuborg Beer.jpg'].map((imgName) => (
                     <button
                       key={imgName}
                       type="button"
@@ -1161,8 +1289,8 @@ const DrinksPage: React.FC = () => {
                       }}
                       className="relative aspect-square border-2 border-zinc-700 rounded-lg overflow-hidden hover:border-indigo-500 transition-colors"
                     >
-                      <img 
-                        src={`/images/drinks/${imgName}`} 
+                      <img
+                        src={`/images/drinks/${imgName}`}
                         alt={imgName}
                         className="w-full h-full object-cover"
                         onError={(e) => {
@@ -1175,7 +1303,7 @@ const DrinksPage: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex gap-2">
               <Button type="submit" className="flex-1">
                 Add Drink
@@ -1247,14 +1375,13 @@ const DrinksPage: React.FC = () => {
                 accept="image/*"
                 onChange={handleCigaretteImageUpload}
                 className="hidden"
-                required
               />
-              
+
               {/* Default Cigarette Images */}
               <div className="mt-4">
                 <p className="text-sm text-zinc-400 mb-2">Or select from default images:</p>
                 <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
-                  {['bdsoundar.jfif', 'classic.jfif', 'connect.jfif', 'lights.jfif', 'malboro.jpg', 'Small.jfif'].map((imgName) => (
+                  {['BD Soundar.jfif', 'Classic.jfif', 'Connect.jfif', 'Lights.jfif', 'Malboro.jpg', 'Small.jfif', 'Indie Mini.jfif'].map((imgName) => (
                     <button
                       key={imgName}
                       type="button"
@@ -1268,8 +1395,8 @@ const DrinksPage: React.FC = () => {
                       }}
                       className="relative aspect-square border-2 border-zinc-700 rounded-lg overflow-hidden hover:border-indigo-500 transition-colors"
                     >
-                      <img 
-                        src={`/images/cigrette/${imgName}`} 
+                      <img
+                        src={`/images/cigrette/${imgName}`}
                         alt={imgName}
                         className="w-full h-full object-cover"
                         onError={(e) => {
@@ -1282,7 +1409,7 @@ const DrinksPage: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex gap-2">
               <Button type="submit" className="flex-1" disabled={!newCigaretteImage || !newCigaretteName.trim()}>
                 Add Cigarette
@@ -1321,7 +1448,7 @@ const DrinksPage: React.FC = () => {
               placeholder="e.g., Biryani, Parotta, etc."
               required
             />
-            
+
             <div>
               <label className="block text-sm font-medium mb-2">Food Image</label>
               {newFoodImagePreview ? (
@@ -1362,7 +1489,7 @@ const DrinksPage: React.FC = () => {
                 placeholder="https://example.com/food-image.jpg"
                 className="mt-2"
               />
-              
+
               {/* Default Food Images */}
               <div className="mt-4">
                 <p className="text-sm text-zinc-400 mb-2">Or select from default images:</p>
@@ -1381,8 +1508,8 @@ const DrinksPage: React.FC = () => {
                       }}
                       className="relative aspect-square border-2 border-zinc-700 rounded-lg overflow-hidden hover:border-indigo-500 transition-colors"
                     >
-                      <img 
-                        src={`/images/food/${imgName}`} 
+                      <img
+                        src={`/images/food/${imgName}`}
                         alt={imgName}
                         className="w-full h-full object-cover"
                         onError={(e) => {
@@ -1395,7 +1522,7 @@ const DrinksPage: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex gap-2">
               <Button type="submit" className="flex-1" disabled={!newFoodImage || !newFoodName.trim()}>
                 Add Food
@@ -1426,7 +1553,7 @@ const DrinksPage: React.FC = () => {
         {/* Header */}
         <div className="sticky top-0 z-10 bg-black border-b border-zinc-800 px-4 py-3">
           <div className="flex items-center justify-between max-w-7xl mx-auto">
-            <button 
+            <button
               onClick={() => setActiveSection('browse')}
               className="p-2 hover:bg-zinc-900 rounded-lg"
             >
@@ -1541,7 +1668,7 @@ const DrinksPage: React.FC = () => {
               placeholder="e.g., Kingfisher, Old Monk, etc."
               required
             />
-            
+
             <div>
               <label className="block text-sm font-medium mb-2">Drink Image</label>
               {newDrinkImagePreview ? (
@@ -1582,12 +1709,12 @@ const DrinksPage: React.FC = () => {
                 placeholder="https://example.com/drink-image.jpg"
                 className="mt-2"
               />
-              
+
               {/* Default Drink Images */}
               <div className="mt-4">
                 <p className="text-sm text-zinc-400 mb-2">Or select from default images:</p>
                 <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
-                  {['bacardihot.jfif', 'brocodebeer.jfif', 'budvisorbeer.jfif', 'junohot.jfif', 'kingfisherbeer.jfif', 'Mansionhousehot.jfif', 'omhot.jfif', 'simbabeer.jfif', 'tuborgbeer.jpg'].map((imgName) => (
+                  {['Bacardi.jfif', 'Brocode Beer.jfif', 'Budweiser Beer.jfif', 'Bullet Beer.jfif', 'Carlsberg Beer.jfif', 'Juno.jfif', 'Kingfisher Beer.jfif', 'Manssionhouse.jfif', 'Old Monk.jfif', 'Simba Beer.jfif', 'Tuborg Beer.jpg'].map((imgName) => (
                     <button
                       key={imgName}
                       type="button"
@@ -1601,8 +1728,8 @@ const DrinksPage: React.FC = () => {
                       }}
                       className="relative aspect-square border-2 border-zinc-700 rounded-lg overflow-hidden hover:border-indigo-500 transition-colors"
                     >
-                      <img 
-                        src={`/images/drinks/${imgName}`} 
+                      <img
+                        src={`/images/drinks/${imgName}`}
                         alt={imgName}
                         className="w-full h-full object-cover"
                         onError={(e) => {
@@ -1615,7 +1742,7 @@ const DrinksPage: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex gap-2">
               <Button type="submit" className="flex-1">
                 Add Drink
@@ -1690,7 +1817,7 @@ const DrinksPage: React.FC = () => {
                 required
               />
             </div>
-            
+
             <div className="flex gap-2">
               <Button type="submit" className="flex-1" disabled={!newCigaretteImage || !newCigaretteName.trim()}>
                 Add Cigarette
@@ -1722,7 +1849,7 @@ const DrinksPage: React.FC = () => {
     const [showFullDescription, setShowFullDescription] = useState(false);
     const [detailQuantity, setDetailQuantity] = useState(1);
 
-    const existingSelection = isDrinkBrand 
+    const existingSelection = isDrinkBrand
       ? userSelections.find(s => s.drink_brand_id === selectedProduct.id)
       : null;
 
@@ -1731,7 +1858,7 @@ const DrinksPage: React.FC = () => {
         {/* Header */}
         <div className="sticky top-0 z-10 bg-black border-b border-zinc-800 px-4 py-3">
           <div className="flex items-center justify-between max-w-7xl mx-auto">
-            <button 
+            <button
               onClick={() => setActiveSection('browse')}
               className="p-2 hover:bg-zinc-900 rounded-lg"
             >
@@ -1779,13 +1906,13 @@ const DrinksPage: React.FC = () => {
 
           {/* Product Name */}
           <h1 className="text-3xl font-bold text-center">
-            {isDrinkBrand 
+            {isDrinkBrand
               ? (selectedProduct as DrinkBrand).name
               : isDrink
-              ? (selectedProduct as Drink).name
-              : isFood
-              ? (selectedProduct as Food).name
-              : (selectedProduct as Cigarette).name || 'Cigarette Pack'}
+                ? (selectedProduct as Drink).name
+                : isFood
+                  ? (selectedProduct as Food).name
+                  : (selectedProduct as Cigarette).name || 'Cigarette Pack'}
           </h1>
 
           {/* Price */}
@@ -1818,7 +1945,7 @@ const DrinksPage: React.FC = () => {
           {isDrinkBrand && (selectedProduct as DrinkBrand).description && (
             <div className="space-y-2">
               <p className="text-zinc-400 leading-relaxed">
-                {showFullDescription 
+                {showFullDescription
                   ? (selectedProduct as DrinkBrand).description
                   : (selectedProduct as DrinkBrand).description?.substring(0, 150)}
                 {(selectedProduct as DrinkBrand).description && (selectedProduct as DrinkBrand).description!.length > 150 && !showFullDescription && '...'}
@@ -1902,7 +2029,7 @@ const DrinksPage: React.FC = () => {
             placeholder="e.g., Kingfisher, Old Monk, etc."
             required
           />
-          
+
           <div>
             <label className="block text-sm font-medium mb-2">Drink Image</label>
             {newDrinkImagePreview ? (
@@ -1944,7 +2071,7 @@ const DrinksPage: React.FC = () => {
               className="mt-2"
             />
           </div>
-          
+
           <div className="flex gap-2">
             <Button type="submit" className="flex-1">
               Add Drink
@@ -2012,7 +2139,7 @@ const DrinksPage: React.FC = () => {
               required
             />
           </div>
-          
+
           <div className="flex gap-2">
             <Button type="submit" className="flex-1" disabled={!newCigaretteImage}>
               Add Cigarette
