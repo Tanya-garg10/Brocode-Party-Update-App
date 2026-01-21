@@ -23,6 +23,7 @@ import DrinksPage from "./pages/DrinksPage";
 
 import DashboardLayout from "./components/layout/DashboardLayout";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import TargetCursor from "./components/common/TargetCursor";
 
 const App: React.FC = () => {
   return (
@@ -30,6 +31,12 @@ const App: React.FC = () => {
       <NotificationsProvider>
         <PaymentProvider>
           <ChatProvider>
+            <TargetCursor
+              spinDuration={2}
+              hideDefaultCursor
+              parallaxOn
+              hoverDuration={0.2}
+            />
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<SplashPage />} />

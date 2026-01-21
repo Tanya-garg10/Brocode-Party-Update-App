@@ -10,6 +10,7 @@ import { Mail, Lock, Eye, EyeOff, Smartphone, User, AtSign, ChevronLeft, AlertCi
 import { mockApi, DEFAULT_AVATARS } from '../services/mockApi';
 import OtpInput from '../components/common/OtpInput';
 import PasswordStrength from '../components/common/PasswordStrength';
+import ShinyText from '../components/common/ShinyText';
 import { profileService } from '../services/database';
 import { supabase } from '../services/supabase';
 
@@ -38,7 +39,7 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
+
   const [authMethod, setAuthMethod] = useState<'email' | 'mobile'>('email');
   const [view, setView] = useState<'login' | 'forgot' | 'reset' | 'mobile-register' | 'mobile-setup'>('login');
 
@@ -204,7 +205,7 @@ const LoginPage: React.FC = () => {
         .select('id')
         .eq('phone', phoneDigits)
         .single();
-      
+
       if (existing) {
         setApiError('Account already exists. Please login instead.');
         setTimeout(() => setView('login'), 2000);
@@ -270,9 +271,19 @@ const LoginPage: React.FC = () => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-black p-6 font-sans">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
-        <div className="flex justify-center mb-10"><Logo className="h-10 w-auto" /></div>
+        <div className="flex items-center justify-center gap-3 mb-10">
+          <Logo className="h-12 w-12" />
+          <ShinyText
+            text="BROCODE"
+            className="text-2xl font-bold"
+            color="#ffffff"
+            shineColor="#6366f1"
+            speed={3}
+            style={{ fontFamily: "'Zen Dots', cursive" }}
+          />
+        </div>
         <div className="bg-[#111111] rounded-[2.5rem] border border-white/5 p-8 shadow-2xl overflow-hidden relative">
-          
+
           <AnimatePresence mode="wait">
             {view === 'login' && (
               <motion.div key="tabs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center p-1.5 bg-zinc-900/50 rounded-2xl mb-10">
@@ -288,12 +299,12 @@ const LoginPage: React.FC = () => {
                 <h1 className="text-3xl font-black text-white tracking-tighter mb-8">LOG IN</h1>
                 <form className="space-y-6" onSubmit={handleLogin} noValidate>
                   <div className="relative">
-                    <Input name="loginEmail" label="Email Address" type="email" value={formData.loginEmail} onChange={handleChange} error={errors.loginEmail} icon={<Mail size={16}/>} placeholder="john@doe.com"/>
+                    <Input name="loginEmail" label="Email Address" type="email" value={formData.loginEmail} onChange={handleChange} error={errors.loginEmail} icon={<Mail size={16} />} placeholder="john@doe.com" />
                     {!isEmailValid && formData.loginEmail && (
-                      <div className="absolute right-4 top-10 text-orange-400 flex items-center gap-1"><AlertCircle size={14}/><span className="text-[10px] font-bold">FORMAT?</span></div>
+                      <div className="absolute right-4 top-10 text-orange-400 flex items-center gap-1"><AlertCircle size={14} /><span className="text-[10px] font-bold">FORMAT?</span></div>
                     )}
                   </div>
-                  <Input name="loginPassword" label="Password" type={showPassword ? 'text' : 'password'} value={formData.loginPassword} onChange={handleChange} error={errors.loginPassword} icon={<Lock size={16}/>} rightIcon={showPassword ? <EyeOff size={16}/> : <Eye size={16}/>} onRightIconClick={() => setShowPassword(!showPassword)}/>
+                  <Input name="loginPassword" label="Password" type={showPassword ? 'text' : 'password'} value={formData.loginPassword} onChange={handleChange} error={errors.loginPassword} icon={<Lock size={16} />} rightIcon={showPassword ? <EyeOff size={16} /> : <Eye size={16} />} onRightIconClick={() => setShowPassword(!showPassword)} />
                   <div className="flex justify-end px-1"><button type="button" onClick={() => setView('forgot')} className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">Forgot Password?</button></div>
                   <Button type="submit" className="w-full py-4 uppercase tracking-widest font-black" disabled={loading}>Enter Squad</Button>
                 </form>
@@ -304,8 +315,8 @@ const LoginPage: React.FC = () => {
               <motion.div key="mobile-login" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }}>
                 <h1 className="text-3xl font-black text-white tracking-tighter mb-8">MOBILE</h1>
                 <form className="space-y-6" onSubmit={handleLogin} noValidate>
-                  <Input name="loginMobile" label="Phone" type="tel" value={formData.loginMobile} onChange={handleChange} error={errors.loginMobile} icon={<Smartphone size={16}/>} placeholder="(000) 000-0000"/>
-                  <Input name="loginPassword" label="Password" type={showPassword ? 'text' : 'password'} value={formData.loginPassword} onChange={handleChange} error={errors.loginPassword} icon={<Lock size={16}/>} rightIcon={showPassword ? <EyeOff size={16}/> : <Eye size={16}/>} onRightIconClick={() => setShowPassword(!showPassword)}/>
+                  <Input name="loginMobile" label="Phone" type="tel" value={formData.loginMobile} onChange={handleChange} error={errors.loginMobile} icon={<Smartphone size={16} />} placeholder="(000) 000-0000" />
+                  <Input name="loginPassword" label="Password" type={showPassword ? 'text' : 'password'} value={formData.loginPassword} onChange={handleChange} error={errors.loginPassword} icon={<Lock size={16} />} rightIcon={showPassword ? <EyeOff size={16} /> : <Eye size={16} />} onRightIconClick={() => setShowPassword(!showPassword)} />
                   <Button type="submit" className="w-full py-4 uppercase tracking-widest font-black" disabled={loading}>Join Meetup</Button>
                   <div className="text-center"><button type="button" onClick={() => setView('mobile-register')} className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">Create Account</button></div>
                 </form>
@@ -317,7 +328,7 @@ const LoginPage: React.FC = () => {
                 <button onClick={() => setView('login')} className="flex items-center text-zinc-500 hover:text-white mb-6 transition-colors"><ChevronLeft size={16} /><span className="text-[10px] font-black uppercase tracking-widest ml-1">Back</span></button>
                 <h1 className="text-3xl font-black text-white tracking-tighter mb-8">RECOVER</h1>
                 <form className="space-y-6" onSubmit={handleForgotSubmit} noValidate>
-                  <Input name="resetEmail" label="Verification Email" type="email" value={formData.resetEmail} onChange={handleChange} error={errors.resetEmail} icon={<Mail size={16}/>} placeholder="john@doe.com"/>
+                  <Input name="resetEmail" label="Verification Email" type="email" value={formData.resetEmail} onChange={handleChange} error={errors.resetEmail} icon={<Mail size={16} />} placeholder="john@doe.com" />
                   <Button type="submit" className="w-full py-4 uppercase tracking-widest font-black" disabled={loading}>Send Reset Code</Button>
                 </form>
               </motion.div>
@@ -327,9 +338,9 @@ const LoginPage: React.FC = () => {
               <motion.div key="reset-v" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }}>
                 <h1 className="text-3xl font-black text-white tracking-tighter mb-8">NEW KEY</h1>
                 <form className="space-y-6" onSubmit={handleResetSubmit} noValidate>
-                  <OtpInput length={6} label="6-Digit Secret" onChange={handleOtpChange} error={errors.otp}/>
+                  <OtpInput length={6} label="6-Digit Secret" onChange={handleOtpChange} error={errors.otp} />
                   <div className="space-y-3">
-                    <Input name="newPassword" label="Set New Password" type="password" value={formData.newPassword} onChange={handleChange} error={errors.newPassword} icon={<Lock size={16}/>}/>
+                    <Input name="newPassword" label="Set New Password" type="password" value={formData.newPassword} onChange={handleChange} error={errors.newPassword} icon={<Lock size={16} />} />
                     <PasswordStrength password={formData.newPassword} />
                   </div>
                   <Button type="submit" className="w-full py-4 uppercase tracking-widest font-black" disabled={loading}>Update Access</Button>
@@ -342,7 +353,7 @@ const LoginPage: React.FC = () => {
                 <button onClick={() => setView('login')} className="flex items-center text-zinc-500 hover:text-white mb-6 transition-colors"><ChevronLeft size={16} /><span className="text-[10px] font-black uppercase tracking-widest ml-1">Back</span></button>
                 <h1 className="text-3xl font-black text-white tracking-tighter mb-8">JOIN SQUAD</h1>
                 <form className="space-y-6" onSubmit={handleMobileRegister} noValidate>
-                  <Input name="mobileNumber" label="Phone Number" type="tel" value={formData.mobileNumber} onChange={handleChange} error={errors.mobileNumber} icon={<Smartphone size={16}/>} placeholder="(000) 000-0000"/>
+                  <Input name="mobileNumber" label="Phone Number" type="tel" value={formData.mobileNumber} onChange={handleChange} error={errors.mobileNumber} icon={<Smartphone size={16} />} placeholder="(000) 000-0000" />
                   <Button type="submit" className="w-full py-4 uppercase tracking-widest font-black" disabled={loading}>Send Code</Button>
                 </form>
               </motion.div>
@@ -352,10 +363,10 @@ const LoginPage: React.FC = () => {
               <motion.div key="mobile-setup" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }}>
                 <h1 className="text-3xl font-black text-white tracking-tighter mb-8">SETUP</h1>
                 <form className="space-y-6" onSubmit={handleMobileSetup} noValidate>
-                  <Input name="email" label="Email Address" type="email" value={formData.email} onChange={handleChange} error={errors.email} icon={<Mail size={16}/>} placeholder="john@doe.com"/>
-                  <Input name="username" label="Username" type="text" value={formData.username} onChange={handleChange} error={errors.username} icon={<AtSign size={16}/>} placeholder="johndoe"/>
+                  <Input name="email" label="Email Address" type="email" value={formData.email} onChange={handleChange} error={errors.email} icon={<Mail size={16} />} placeholder="john@doe.com" />
+                  <Input name="username" label="Username" type="text" value={formData.username} onChange={handleChange} error={errors.username} icon={<AtSign size={16} />} placeholder="johndoe" />
                   <div className="space-y-3">
-                    <Input name="newPassword" label="Password" type="password" value={formData.newPassword} onChange={handleChange} error={errors.newPassword} icon={<Lock size={16}/>}/>
+                    <Input name="newPassword" label="Password" type="password" value={formData.newPassword} onChange={handleChange} error={errors.newPassword} icon={<Lock size={16} />} />
                     <PasswordStrength password={formData.newPassword} />
                   </div>
                   <Button type="submit" className="w-full py-4 uppercase tracking-widest font-black" disabled={loading}>Create Account</Button>
@@ -363,7 +374,7 @@ const LoginPage: React.FC = () => {
               </motion.div>
             )}
           </AnimatePresence>
-          
+
           <AnimatePresence>
             {(apiError || success) && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={`mt-6 p-4 rounded-2xl text-center text-[10px] font-black uppercase tracking-widest border ${apiError ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-green-500/10 text-green-400 border-green-500/20'}`}>

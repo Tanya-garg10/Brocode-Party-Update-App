@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+﻿import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { UserRole, Spot, Drink, PaymentStatus, Cigarette, Food, DrinkBrand, UserDrinkSelection } from "../types";
 import Card from "../components/common/Card";
@@ -7,7 +7,8 @@ import Modal from "../components/common/Modal";
 import Input from "../components/common/Input";
 import { spotService, paymentService, drinkService, cigaretteService, foodService, drinkBrandService, userDrinkSelectionService } from "../services/database";
 import { supabase } from "../services/supabase";
-import { Plus, ThumbsUp, Trash2, Loader2, Image as ImageIcon, X, Camera, ShoppingCart, Minus, Check, Wine, Search, Menu, ArrowLeft, Star, Edit, Utensils } from "lucide-react";
+import { Plus, ThumbsUp, Trash2, Loader2, Image as ImageIcon, X, Camera, ShoppingCart, Minus, Check, Wine, Search, Menu, ArrowLeft, Star, Edit, Utensils, Download } from "lucide-react";
+import ShinyText from "../components/common/ShinyText";
 
 const DrinksPage: React.FC = () => {
   const { profile } = useAuth();
@@ -49,10 +50,10 @@ const DrinksPage: React.FC = () => {
   const cigaretteImageInputRef = useRef<HTMLInputElement>(null);
   const foodImageInputRef = useRef<HTMLInputElement>(null);
 
-  // Admin price editing
   const [editingPriceItem, setEditingPriceItem] = useState<{ type: 'drink' | 'food' | 'cigarette'; id: string } | null>(null);
   const [priceInput, setPriceInput] = useState("");
   const [currentUserUUID, setCurrentUserUUID] = useState<string | null>(null);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   const isAdmin = profile?.role === UserRole.ADMIN;
 
@@ -107,7 +108,7 @@ const DrinksPage: React.FC = () => {
         try {
           const uuid = await getUserIdAsUUID(profile.id);
           setCurrentUserUUID(uuid);
-          console.log('✅ Current user UUID set:', uuid, 'from profile.id:', profile.id);
+          console.log('âœ… Current user UUID set:', uuid, 'from profile.id:', profile.id);
         } catch (err) {
           console.error('Error getting user UUID:', err);
           setCurrentUserUUID(profile.id);
@@ -488,7 +489,7 @@ const DrinksPage: React.FC = () => {
       // For drinks
       const isOwner = item.suggested_by === currentUserUUID;
       if (isOwner) {
-        console.log('✅ User owns this drink:', item.id);
+        console.log('âœ… User owns this drink:', item.id);
       }
       return isOwner;
     }
@@ -496,7 +497,7 @@ const DrinksPage: React.FC = () => {
       // For cigarettes and food
       const isOwner = item.added_by === currentUserUUID;
       if (isOwner) {
-        console.log('✅ User owns this item:', item.id);
+        console.log('âœ… User owns this item:', item.id);
       }
       return isOwner;
     }
@@ -646,6 +647,100 @@ const DrinksPage: React.FC = () => {
     return userVotedDrinks.has(drink.id);
   };
 
+  // Export data to Excel (CSV format)
+  const exportToExcel = () => {
+    if (!isAdmin) return;
+
+    // Group data by user
+    const userDataMap = new Map<string, {
+      userId: string;
+      username: string;
+      name: string;
+      drinks: string[];
+      foods: string[];
+      cigarettes: string[];
+    }>();
+
+    // Process drinks
+    drinks.forEach(drink => {
+      const userId = drink.suggested_by;
+      const existingUser = drink.profiles;
+      if (existingUser) {
+        if (!userDataMap.has(userId)) {
+          userDataMap.set(userId, {
+            userId,
+            username: (existingUser as any).username || 'Unknown',
+            name: existingUser.name || 'Unknown',
+            drinks: [],
+            foods: [],
+            cigarettes: []
+          });
+        }
+        userDataMap.get(userId)?.drinks.push(drink.name);
+      }
+    });
+
+    // Process foods
+    foods.forEach(food => {
+      const userId = food.added_by;
+      const existingUser = food.profiles;
+      if (existingUser) {
+        if (!userDataMap.has(userId)) {
+          userDataMap.set(userId, {
+            userId,
+            username: (existingUser as any).username || 'Unknown',
+            name: existingUser.name || 'Unknown',
+            drinks: [],
+            foods: [],
+            cigarettes: []
+          });
+        }
+        userDataMap.get(userId)?.foods.push(food.name);
+      }
+    });
+
+    // Process cigarettes
+    cigarettes.forEach(cig => {
+      const userId = cig.added_by;
+      const existingUser = cig.profiles;
+      if (existingUser) {
+        if (!userDataMap.has(userId)) {
+          userDataMap.set(userId, {
+            userId,
+            username: (existingUser as any).username || 'Unknown',
+            name: existingUser.name || 'Unknown',
+            drinks: [],
+            foods: [],
+            cigarettes: []
+          });
+        }
+        userDataMap.get(userId)?.cigarettes.push(cig.name);
+      }
+    });
+
+    // Create CSV content
+    let csvContent = "User ID,Username,Name,Drinks,Foods,Cigarettes\n";
+
+    userDataMap.forEach((userData) => {
+      const drinksStr = userData.drinks.length > 0 ? userData.drinks.join('; ') : 'None';
+      const foodsStr = userData.foods.length > 0 ? userData.foods.join('; ') : 'None';
+      const cigarettesStr = userData.cigarettes.length > 0 ? userData.cigarettes.join('; ') : 'Not needed for me';
+
+      csvContent += `"${userData.userId}","${userData.username}","${userData.name}","${drinksStr}","${foodsStr}","${cigarettesStr}"\n`;
+    });
+
+    // Create and download the file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `brocode_orders_${spot?.location || 'spot'}_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // Safety check: don't render if profile is not available yet
   if (!profile) {
     return (
@@ -672,7 +767,7 @@ const DrinksPage: React.FC = () => {
       <div className="p-8 text-center">
         <Card className="p-8 max-w-2xl mx-auto">
           <div className="mb-4">
-            <span className="text-6xl">⚠️</span>
+            <span className="text-6xl">âš ï¸</span>
           </div>
           <h2 className="text-xl font-semibold mb-4 text-red-400">Drinks Section Error</h2>
           <p className="text-gray-300 mb-6 whitespace-pre-line">{pageError}</p>
@@ -725,12 +820,30 @@ const DrinksPage: React.FC = () => {
           <div className="flex items-center justify-between max-w-7xl mx-auto">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-zinc-400">{spot.location}</span>
-              <span className="text-zinc-600">•••</span>
-              <span className="text-sm font-medium text-zinc-400">12 Bar</span>
             </div>
-            <button className="p-2 hover:bg-zinc-900 rounded-lg">
-              <Menu size={20} />
-            </button>
+            <div className="relative">
+              <button
+                className="p-2 hover:bg-zinc-900 rounded-lg"
+                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+              >
+                <Menu size={20} />
+              </button>
+              {/* Export Menu Dropdown */}
+              {isExportMenuOpen && isAdmin && (
+                <div className="absolute right-0 top-12 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl z-50 min-w-[200px]">
+                  <button
+                    onClick={() => {
+                      exportToExcel();
+                      setIsExportMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800 text-white text-sm"
+                  >
+                    <Download size={18} />
+                    Download Excel Report
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -832,7 +945,7 @@ const DrinksPage: React.FC = () => {
                                 </div>
                               ) : (
                                 <div className="flex items-center justify-between">
-                                  <span className="text-sm text-zinc-400">{drink.price ? `₹${drink.price}` : 'No price'}</span>
+                                  <span className="text-sm text-zinc-400">{drink.price ? `Rs.${drink.price}` : 'No price'}</span>
                                   <div className="flex gap-2">
                                     <button
                                       onClick={() => {
@@ -912,7 +1025,7 @@ const DrinksPage: React.FC = () => {
                                 </div>
                               ) : (
                                 <div className="flex items-center justify-between">
-                                  <span className="text-sm text-zinc-400">{food.price ? `₹${food.price}` : 'No price'}</span>
+                                  <span className="text-sm text-zinc-400">{food.price ? `Rs.${food.price}` : 'No price'}</span>
                                   <div className="flex gap-2">
                                     <button
                                       onClick={() => {
@@ -988,7 +1101,7 @@ const DrinksPage: React.FC = () => {
                                 </div>
                               ) : (
                                 <div className="flex items-center justify-between">
-                                  <span className="text-sm text-zinc-400">{cig.price ? `₹${cig.price}` : 'No price'}</span>
+                                  <span className="text-sm text-zinc-400">{cig.price ? `Rs.${cig.price}` : 'No price'}</span>
                                   <div className="flex gap-2">
                                     <button
                                       onClick={() => {
@@ -1054,7 +1167,7 @@ const DrinksPage: React.FC = () => {
                     </div>
                     <h3 className="font-semibold text-sm mb-1 line-clamp-1">{drink.name}</h3>
                     <p className="text-xs text-zinc-500 mb-1">by {drink.profiles?.name || 'Unknown'}</p>
-                    {drink.price && <p className="text-sm text-indigo-400">\u20b9{drink.price}</p>}
+                    {drink.price && <p className="text-sm text-indigo-400">Rs.{drink.price}</p>}
                     {!drink.price && <p className="text-xs text-zinc-600">Price not set</p>}
                   </Card>
                 </div>
@@ -1099,7 +1212,7 @@ const DrinksPage: React.FC = () => {
                     </div>
                     <h3 className="font-semibold text-sm mb-1 line-clamp-1">{cigarette.name || 'Cigarette Pack'}</h3>
                     <p className="text-xs text-zinc-500 mb-1">by {cigarette.profiles?.name || 'Unknown'}</p>
-                    {cigarette.price && <p className="text-sm text-indigo-400">₹{cigarette.price}</p>}
+                    {cigarette.price && <p className="text-sm text-indigo-400">Rs.{cigarette.price}</p>}
                     {!cigarette.price && <p className="text-xs text-zinc-600">Price not set</p>}
                   </Card>
                 </div>
@@ -1142,7 +1255,7 @@ const DrinksPage: React.FC = () => {
                         : food.name}
                     </h3>
                     <p className="text-xs text-zinc-500 mb-1">by {food.profiles?.name || 'Unknown'}</p>
-                    {food.price && <p className="text-sm text-indigo-400">₹{food.price}</p>}
+                    {food.price && <p className="text-sm text-indigo-400">Rs.{food.price}</p>}
                     {!food.price && <p className="text-xs text-zinc-600">Price not set</p>}
                   </Card>
                 </div>
@@ -1163,33 +1276,54 @@ const DrinksPage: React.FC = () => {
           )}
 
           {/* Bottom Action Button */}
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20">
+          <div className="fixed bottom-24 md:bottom-4 left-1/2 -translate-x-1/2 z-40">
             {activeType === 'drinks' && (
-              <Button
+              <button
                 onClick={() => setIsDrinkModalOpen(true)}
-                className="shadow-lg px-8 py-3"
+                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full shadow-lg hover:from-indigo-500 hover:to-purple-500 transition-all"
               >
-                <Plus size={20} className="mr-2" />
-                Add Drinks
-              </Button>
+                <Plus size={20} className="text-white" />
+                <ShinyText
+                  text="Add Drinks"
+                  className="text-sm font-bold"
+                  color="#ffffff"
+                  shineColor="#c4b5fd"
+                  speed={2.5}
+                  style={{ fontFamily: "'Zen Dots', cursive" }}
+                />
+              </button>
             )}
             {activeType === 'food' && (
-              <Button
+              <button
                 onClick={() => setIsFoodModalOpen(true)}
-                className="shadow-lg px-8 py-3"
+                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-orange-500 to-red-500 rounded-full shadow-lg hover:from-orange-400 hover:to-red-400 transition-all"
               >
-                <Utensils size={20} className="mr-2" />
-                Add Food
-              </Button>
+                <Utensils size={20} className="text-white" />
+                <ShinyText
+                  text="Add Food"
+                  className="text-sm font-bold"
+                  color="#ffffff"
+                  shineColor="#fcd34d"
+                  speed={2.5}
+                  style={{ fontFamily: "'Zen Dots', cursive" }}
+                />
+              </button>
             )}
             {activeType === 'cigarette' && (
-              <Button
+              <button
                 onClick={() => setIsCigaretteModalOpen(true)}
-                className="shadow-lg px-8 py-3"
+                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-zinc-600 to-zinc-800 rounded-full shadow-lg hover:from-zinc-500 hover:to-zinc-700 transition-all"
               >
-                <Camera size={20} className="mr-2" />
-                Add Cigarette
-              </Button>
+                <Camera size={20} className="text-white" />
+                <ShinyText
+                  text="Add Cigarette"
+                  className="text-sm font-bold"
+                  color="#ffffff"
+                  shineColor="#a1a1aa"
+                  speed={2.5}
+                  style={{ fontFamily: "'Zen Dots', cursive" }}
+                />
+              </button>
             )}
           </div>
 
@@ -1561,7 +1695,7 @@ const DrinksPage: React.FC = () => {
             </button>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-zinc-400">{spot.location}</span>
-              <span className="text-zinc-600">•••</span>
+              <span className="text-zinc-600">â€¢â€¢â€¢</span>
               <span className="text-sm font-medium text-zinc-400">12 Bar</span>
             </div>
             <button className="p-2 hover:bg-zinc-900 rounded-lg">
@@ -1591,7 +1725,7 @@ const DrinksPage: React.FC = () => {
                   )}
                   <div className="flex-1">
                     <h3 className="font-semibold">{selection.drink_brand?.name}</h3>
-                    <p className="text-sm text-zinc-400">₹{selection.unit_price} each</p>
+                    <p className="text-sm text-zinc-400">Rs.{selection.unit_price} each</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
@@ -1607,7 +1741,7 @@ const DrinksPage: React.FC = () => {
                     >
                       <Plus size={16} />
                     </button>
-                    <span className="font-bold text-lg w-20 text-right">₹{selection.total_price}</span>
+                    <span className="font-bold text-lg w-20 text-right">Rs.{selection.total_price}</span>
                     <button
                       onClick={() => handleRemoveSelection(selection.id)}
                       className="p-2 text-red-400 hover:bg-red-400/10 rounded"
@@ -1635,7 +1769,7 @@ const DrinksPage: React.FC = () => {
           <div className="mb-6">
             <div className="flex justify-between items-center p-4 bg-zinc-900 rounded-lg border border-zinc-800">
               <span className="text-lg font-semibold">Total price</span>
-              <span className="text-2xl font-bold text-indigo-400">₹{totalCartAmount.toFixed(2)}</span>
+              <span className="text-2xl font-bold text-indigo-400">Rs.{totalCartAmount.toFixed(2)}</span>
             </div>
           </div>
 
@@ -1918,7 +2052,7 @@ const DrinksPage: React.FC = () => {
           {/* Price */}
           {isDrinkBrand && (
             <p className="text-2xl font-bold text-center text-indigo-400">
-              ₹{(selectedProduct as DrinkBrand).base_price}
+              Rs.{(selectedProduct as DrinkBrand).base_price}
             </p>
           )}
 
@@ -2163,3 +2297,4 @@ const DrinksPage: React.FC = () => {
 };
 
 export default DrinksPage;
+

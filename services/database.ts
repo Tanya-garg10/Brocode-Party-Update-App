@@ -10,7 +10,7 @@ export const spotService = {
   async getUpcomingSpot(): Promise<Spot | null> {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-    
+
     const { data, error } = await supabase
       .from('spots')
       .select('*')
@@ -37,7 +37,7 @@ export const spotService = {
   // Get all upcoming spots
   async getUpcomingSpots(): Promise<Spot[]> {
     const today = new Date().toISOString().split('T')[0];
-    
+
     const { data, error } = await supabase
       .from('spots')
       .select('*')
@@ -55,7 +55,7 @@ export const spotService = {
   // Get past spots (date < today)
   async getPastSpots(): Promise<Spot[]> {
     const today = new Date().toISOString().split('T')[0];
-    
+
     const { data, error } = await supabase
       .from('spots')
       .select('*')
@@ -81,7 +81,7 @@ export const spotService = {
       // If it's just a date (YYYY-MM-DD), add time
       dateValue = `${dateValue}T${spotData.timing}:00`;
     }
-    
+
     const { data, error } = await supabase
       .from('spots')
       .insert({
@@ -147,7 +147,7 @@ export const spotService = {
   subscribeToSpots(callback: (payload: any) => void) {
     return supabase
       .channel('spots-changes')
-      .on('postgres_changes', 
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'spots' },
         callback
       )
@@ -246,7 +246,7 @@ export const invitationService = {
   ): Promise<void> {
     const { error } = await supabase
       .from('invitations')
-      .update({ 
+      .update({
         status,
         updated_at: new Date().toISOString()
       })
@@ -305,13 +305,15 @@ export const paymentService = {
       throw error;
     }
 
-    return data.map((pay: any) => ({
-      id: pay.id,
-      spot_id: pay.spot_id,
-      user_id: pay.user_id,
-      profiles: pay.profiles,
-      status: pay.status as PaymentStatus,
-    }));
+    return data
+      .filter((pay: any) => pay.profiles !== null && pay.profiles?.name)
+      .map((pay: any) => ({
+        id: pay.id,
+        spot_id: pay.spot_id,
+        user_id: pay.user_id,
+        profiles: pay.profiles,
+        status: pay.status as PaymentStatus,
+      }));
   },
 
   // Create or update payment
@@ -486,6 +488,57 @@ export const profileService = {
 
     return data;
   },
+
+  // Get all profiles (admin only)
+  async getAllProfiles(): Promise<UserProfile[]> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching profiles:', error);
+      throw error;
+    }
+
+    return data || [];
+  },
+
+  // Delete profile (admin only)
+  async deleteProfile(userId: string): Promise<void> {
+    // First delete related data
+    // Delete user's invitations
+    await supabase.from('invitations').delete().eq('user_id', userId);
+
+    // Delete user's payments
+    await supabase.from('payments').delete().eq('user_id', userId);
+
+    // Delete user's moments
+    await supabase.from('moments').delete().eq('user_id', userId);
+
+    // Delete user's drink selections
+    await supabase.from('user_drink_selections').delete().eq('user_id', userId);
+
+    // Delete user's drinks
+    await supabase.from('drinks').delete().eq('suggested_by', userId);
+
+    // Delete user's foods  
+    await supabase.from('foods').delete().eq('added_by', userId);
+
+    // Delete user's cigarettes
+    await supabase.from('cigarettes').delete().eq('added_by', userId);
+
+    // Finally delete the profile
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error deleting profile:', error);
+      throw error;
+    }
+  },
 };
 
 /* -------------------------------------------------------------------------- */
@@ -510,9 +563,9 @@ export const drinkService = {
       if (error) {
         console.error('Error fetching drinks:', error);
         // If table doesn't exist, return empty array instead of throwing
-        if (error.message?.includes('does not exist') || 
-            error.message?.includes('relation') ||
-            error.code === '42P01') {
+        if (error.message?.includes('does not exist') ||
+          error.message?.includes('relation') ||
+          error.code === '42P01') {
           return [];
         }
         throw error;
@@ -536,9 +589,9 @@ export const drinkService = {
     } catch (err: any) {
       console.error('Error in getDrinks:', err);
       // If it's a table not found error, return empty array
-      if (err.message?.includes('does not exist') || 
-          err.message?.includes('relation') ||
-          err.code === '42P01') {
+      if (err.message?.includes('does not exist') ||
+        err.message?.includes('relation') ||
+        err.code === '42P01') {
         return [];
       }
       throw err;
@@ -721,9 +774,9 @@ export const cigaretteService = {
       if (error) {
         console.error('Error fetching cigarettes:', error);
         // If table doesn't exist, return empty array instead of throwing
-        if (error.message?.includes('does not exist') || 
-            error.message?.includes('relation') ||
-            error.code === '42P01') {
+        if (error.message?.includes('does not exist') ||
+          error.message?.includes('relation') ||
+          error.code === '42P01') {
           return [];
         }
         throw error;
@@ -746,9 +799,9 @@ export const cigaretteService = {
     } catch (err: any) {
       console.error('Error in getCigarettes:', err);
       // If it's a table not found error, return empty array
-      if (err.message?.includes('does not exist') || 
-          err.message?.includes('relation') ||
-          err.code === '42P01') {
+      if (err.message?.includes('does not exist') ||
+        err.message?.includes('relation') ||
+        err.code === '42P01') {
         return [];
       }
       throw err;
@@ -867,9 +920,9 @@ export const foodService = {
       if (error) {
         console.error('Error fetching foods:', error);
         // If table doesn't exist, return empty array instead of throwing
-        if (error.message?.includes('does not exist') || 
-            error.message?.includes('relation') ||
-            error.code === '42P01') {
+        if (error.message?.includes('does not exist') ||
+          error.message?.includes('relation') ||
+          error.code === '42P01') {
           return [];
         }
         throw error;
@@ -892,9 +945,9 @@ export const foodService = {
     } catch (err: any) {
       console.error('Error in getFoods:', err);
       // If it's a table not found error, return empty array
-      if (err.message?.includes('does not exist') || 
-          err.message?.includes('relation') ||
-          err.code === '42P01') {
+      if (err.message?.includes('does not exist') ||
+        err.message?.includes('relation') ||
+        err.code === '42P01') {
         return [];
       }
       throw err;

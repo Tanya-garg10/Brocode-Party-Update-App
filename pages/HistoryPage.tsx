@@ -30,10 +30,10 @@ const HistoryPage: React.FC = () => {
     const [spotToDelete, setSpotToDelete] = useState<string | null>(null);
     const [dbSetupError, setDbSetupError] = useState<string | null>(null);
     const [attendances, setAttendances] = useState<Record<string, Attendance | null>>({});
-    
+
     const fetchData = useCallback(async () => {
         if (!profile) return;
-        
+
         setLoading(true);
         setError(null);
         setDbSetupError(null);
@@ -53,7 +53,7 @@ const HistoryPage: React.FC = () => {
                 }
             }
             setAttendances(attendanceMap);
-        } catch(err: any) {
+        } catch (err: any) {
             if (err.message?.includes('does not exist') || err.message?.includes('relation')) {
                 const setup = await checkDatabaseSetup();
                 setDbSetupError(getSetupInstructions(setup.missingTables));
@@ -203,24 +203,24 @@ const HistoryPage: React.FC = () => {
                                     <p className="text-gray-300">
                                         {new Date(spot.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} at {spot.timing}
                                     </p>
-                                    <p className="text-gray-400 text-sm mt-1">₹{spot.budget} / person</p>
+                                    <p className="text-gray-400 text-sm mt-1">Rs.{spot.budget} / person</p>
                                 </div>
                                 {isAdmin && (
                                     <div className="flex gap-2 mt-4 md:mt-0">
-                                        <Button 
-                                            variant="secondary" 
+                                        <Button
+                                            variant="secondary"
                                             size="sm"
                                             onClick={() => handleEdit(spot)}
                                         >
-                                            <Edit2 className="w-4 h-4 mr-2"/>
+                                            <Edit2 className="w-4 h-4 mr-2" />
                                             Edit
                                         </Button>
-                                        <Button 
-                                            variant="secondary" 
+                                        <Button
+                                            variant="secondary"
                                             size="sm"
                                             onClick={() => handleDeleteClick(spot.id)}
                                         >
-                                            <Trash2 className="w-4 h-4 mr-2"/>
+                                            <Trash2 className="w-4 h-4 mr-2" />
                                             Delete
                                         </Button>
                                     </div>
@@ -344,8 +344,8 @@ const HistoryPage: React.FC = () => {
                     />
                     <div className="flex gap-2">
                         <Button type="submit" className="flex-1">Update Spot</Button>
-                        <Button 
-                            type="button" 
+                        <Button
+                            type="button"
                             variant="secondary"
                             onClick={() => {
                                 setIsEditModalOpen(false);
@@ -372,14 +372,14 @@ const HistoryPage: React.FC = () => {
                         Are you sure you want to delete this spot? This action cannot be undone.
                     </p>
                     <div className="flex gap-2">
-                        <Button 
+                        <Button
                             variant="secondary"
                             onClick={handleDeleteConfirm}
                             className="flex-1"
                         >
                             Delete
                         </Button>
-                        <Button 
+                        <Button
                             onClick={() => {
                                 setIsDeleteConfirmOpen(false);
                                 setSpotToDelete(null);

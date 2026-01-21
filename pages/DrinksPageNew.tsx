@@ -43,7 +43,7 @@ const DrinksPage: React.FC = () => {
 
     const cleanPhone = profile.phone ? profile.phone.replace(/\D/g, '') : '';
     let dbProfile = null;
-    
+
     if (cleanPhone) {
       const { data, error } = await supabase
         .from('profiles')
@@ -52,7 +52,7 @@ const DrinksPage: React.FC = () => {
         .maybeSingle();
       if (!error && data) dbProfile = data;
     }
-    
+
     if (!dbProfile && profile.email) {
       const { data, error } = await supabase
         .from('profiles')
@@ -61,7 +61,7 @@ const DrinksPage: React.FC = () => {
         .maybeSingle();
       if (!error && data) dbProfile = data;
     }
-    
+
     if (!dbProfile && profile.username) {
       const { data, error } = await supabase
         .from('profiles')
@@ -77,7 +77,7 @@ const DrinksPage: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     if (!profile) return;
-    
+
     try {
       const spotData = await spotService.getUpcomingSpot();
       setSpot(spotData);
@@ -206,8 +206,8 @@ const DrinksPage: React.FC = () => {
   const cartItemCount = userSelections.reduce((sum, sel) => sum + sel.quantity, 0);
 
   const categories = ['all', 'beer', 'whiskey', 'vodka', 'rum', 'wine', 'cocktail', 'soft_drink'];
-  const filteredBrands = selectedCategory === 'all' 
-    ? drinkBrands 
+  const filteredBrands = selectedCategory === 'all'
+    ? drinkBrands
     : drinkBrands.filter(b => b.category === selectedCategory);
 
   if (loading) {
@@ -250,8 +250,8 @@ const DrinksPage: React.FC = () => {
           <p className="text-sm text-zinc-400 mt-1">Choose your drinks and build your order</p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            onClick={() => setActiveTab('cart')} 
+          <Button
+            onClick={() => setActiveTab('cart')}
             variant="secondary"
             className="relative"
           >
@@ -285,11 +285,10 @@ const DrinksPage: React.FC = () => {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-              activeTab === tab.id
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === tab.id
                 ? 'bg-indigo-600 text-white'
                 : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-            }`}
+              }`}
           >
             <tab.icon size={16} />
             <span className="hidden sm:inline">{tab.label}</span>
@@ -307,11 +306,10 @@ const DrinksPage: React.FC = () => {
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-                  selectedCategory === cat
+                className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${selectedCategory === cat
                     ? 'bg-indigo-600 text-white'
                     : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                }`}
+                  }`}
               >
                 {cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1).replace('_', ' ')}
               </button>
@@ -350,8 +348,8 @@ const DrinksPage: React.FC = () => {
                     </div>
                     <h3 className="font-semibold text-sm mb-1 line-clamp-1">{brand.name}</h3>
                     <p className="text-xs text-zinc-400 mb-2 line-clamp-1">{brand.description}</p>
-                    <p className="text-lg font-bold text-indigo-400 mb-3">₹{brand.base_price}</p>
-                    
+                    <p className="text-lg font-bold text-indigo-400 mb-3">Rs.{brand.base_price}</p>
+
                     {quantity > 0 ? (
                       <div className="flex items-center justify-between gap-2">
                         <button
@@ -430,11 +428,10 @@ const DrinksPage: React.FC = () => {
                       const userId = getUserIdAsUUID(profile!.id);
                       drinkService.voteForDrink(drink.id, userId as any).then(() => fetchData());
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                      userVotedDrinks.has(drink.id)
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${userVotedDrinks.has(drink.id)
                         ? "bg-indigo-600 text-white"
                         : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-                    }`}
+                      }`}
                   >
                     <ThumbsUp size={16} />
                     <span>{drink.votes}</span>
@@ -513,7 +510,7 @@ const DrinksPage: React.FC = () => {
                       )}
                       <div className="flex-1">
                         <h3 className="font-semibold">{selection.drink_brand?.name}</h3>
-                        <p className="text-sm text-zinc-400">₹{selection.unit_price} each</p>
+                        <p className="text-sm text-zinc-400">Rs.{selection.unit_price} each</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <button
@@ -529,7 +526,7 @@ const DrinksPage: React.FC = () => {
                         >
                           <Plus size={16} />
                         </button>
-                        <span className="font-bold text-lg w-20 text-right">₹{selection.total_price}</span>
+                        <span className="font-bold text-lg w-20 text-right">Rs.{selection.total_price}</span>
                         <button
                           onClick={() => handleRemoveSelection(selection.id)}
                           className="p-2 text-red-400 hover:bg-red-400/10 rounded"
@@ -545,7 +542,7 @@ const DrinksPage: React.FC = () => {
                 <div className="flex justify-between items-center text-white">
                   <div>
                     <p className="text-sm opacity-90">Total Amount</p>
-                    <p className="text-3xl font-bold">₹{totalCartAmount.toFixed(2)}</p>
+                    <p className="text-3xl font-bold">Rs.{totalCartAmount.toFixed(2)}</p>
                     <p className="text-xs opacity-75 mt-1">{cartItemCount} item(s)</p>
                   </div>
                   <Check size={32} className="opacity-80" />

@@ -14,11 +14,10 @@ import { supabase } from "../services/supabase";
 
 const PaymentStatusBadge: React.FC<{ paid: boolean }> = ({ paid }) => (
   <span
-    className={`px-2 py-1 text-xs font-semibold rounded-full border ${
-      paid
-        ? "bg-green-500/20 text-green-300 border-green-500"
-        : "bg-red-500/20 text-red-300 border-red-500"
-    }`}
+    className={`px-2 py-1 text-xs font-semibold rounded-full border ${paid
+      ? "bg-green-500/20 text-green-300 border-green-500"
+      : "bg-red-500/20 text-red-300 border-red-500"
+      }`}
   >
     {paid ? "Paid" : "Not Paid"}
   </span>
@@ -158,9 +157,9 @@ const PaymentPage: React.FC = () => {
           <h2 className="text-lg md:text-xl font-semibold mb-4">Scan to Pay</h2>
 
           <div className="bg-white p-3 md:p-4 rounded-xl w-full max-w-[280px] flex items-center justify-center min-h-[250px]">
-            <img 
-              src="/images/qr.jpg" 
-              alt="Payment QR Code" 
+            <img
+              src="/images/qr.jpg"
+              alt="Payment QR Code"
               className="w-full h-auto max-w-[250px]"
               onError={(e) => {
                 // If image doesn't exist, show a placeholder with UPI ID
@@ -182,7 +181,7 @@ const PaymentPage: React.FC = () => {
           </div>
 
           <p className="mt-3 text-sm md:text-base text-gray-400 font-semibold">
-            Amount: ₹{amount}
+            Amount: Rs.{amount}
           </p>
           <p className="mt-1 text-xs text-gray-500 break-all px-4">
             UPI ID: {payeeVPA}
@@ -233,66 +232,68 @@ const PaymentPage: React.FC = () => {
             </p>
           ) : (
             <div className="space-y-3">
-              {payments.map((payment) => {
-                const isPaid = payment.status === PaymentStatus.PAID;
-                const member = payment.profiles;
+              {payments
+                .filter((payment) => payment.profiles && payment.profiles.name)
+                .map((payment) => {
+                  const isPaid = payment.status === PaymentStatus.PAID;
+                  const member = payment.profiles;
 
-                return (
-                  <div
-                    key={payment.id}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-zinc-800/50 rounded-lg border border-white/5"
-                  >
-                    <div 
-                      className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-                      onClick={() => window.location.href = `/dashboard/profile/${payment.user_id}`}
+                  return (
+                    <div
+                      key={payment.id}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-zinc-800/50 rounded-lg border border-white/5"
                     >
-                      <img
-                        src={
-                          member.profile_pic_url ||
-                          "https://api.dicebear.com/7.x/thumbs/svg?seed=user"
-                        }
-                        alt={member.name}
-                        className="w-10 h-10 rounded-full border border-white/10 flex-shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <span className="font-medium text-sm md:text-base block truncate">
-                          {member.name}
-                        </span>
-                        <span className="text-xs text-zinc-500 truncate block">
-                          @{member.username}
-                        </span>
+                      <div
+                        className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => window.location.href = `/dashboard/profile/${payment.user_id}`}
+                      >
+                        <img
+                          src={
+                            member.profile_pic_url ||
+                            "https://api.dicebear.com/7.x/thumbs/svg?seed=user"
+                          }
+                          alt={member.name}
+                          className="w-10 h-10 rounded-full border border-white/10 flex-shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <span className="font-medium text-sm md:text-base block truncate">
+                            {member.name}
+                          </span>
+                          <span className="text-xs text-zinc-500 truncate block">
+                            @{member.username}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                        <PaymentStatusBadge paid={isPaid} />
+
+                        {isAdmin && (
+                          <>
+                            {!isPaid ? (
+                              <Button
+                                size="sm"
+                                onClick={() => handleMarkPaid(payment.id)}
+                                className="text-xs whitespace-nowrap"
+                              >
+                                Mark Paid
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleMarkUnpaid(payment.id)}
+                                className="text-xs whitespace-nowrap"
+                              >
+                                Undo
+                              </Button>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                      <PaymentStatusBadge paid={isPaid} />
-
-                      {isAdmin && (
-                        <>
-                          {!isPaid ? (
-                            <Button
-                              size="sm"
-                              onClick={() => handleMarkPaid(payment.id)}
-                              className="text-xs whitespace-nowrap"
-                            >
-                              Mark Paid
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => handleMarkUnpaid(payment.id)}
-                              className="text-xs whitespace-nowrap"
-                            >
-                              Undo
-                            </Button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
           )}
         </Card>

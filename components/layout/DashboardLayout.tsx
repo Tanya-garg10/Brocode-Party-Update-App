@@ -2,11 +2,12 @@
 import React from 'react';
 // FIX: Use namespace import for react-router-dom to address potential module resolution issues.
 import * as ReactRouterDOM from 'react-router-dom';
-import { Home, CreditCard, History, Bell, User, Zap, ChevronsUpDown, LogOut, MessageSquare, Wine } from 'lucide-react';
+import { Home, CreditCard, History, Bell, User, Zap, ChevronsUpDown, LogOut, MessageSquare, Wine, Download, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../contexts/NotificationsContext';
 import { useChat } from '../../contexts/ChatContext';
+import ShinyText from '../common/ShinyText';
 
 const navItems = [
     { path: '/dashboard/home', icon: Home, label: 'Home' },
@@ -93,6 +94,11 @@ const DashboardLayout: React.FC = () => {
     const location = ReactRouterDOM.useLocation();
     const { profile, logout } = useAuth();
     const allNavItemsForMobile = [...navItems, ...bottomNavItems];
+    const [showDownloadBanner, setShowDownloadBanner] = React.useState(() => {
+        // Check if banner was dismissed before
+        const dismissed = localStorage.getItem('downloadBannerDismissed');
+        return !dismissed;
+    });
 
     return (
         <div className="flex h-screen bg-black text-gray-200 font-sans">
@@ -100,7 +106,14 @@ const DashboardLayout: React.FC = () => {
             <aside className="hidden md:flex w-64 flex-col p-4 bg-[#111111] border-r border-zinc-800">
                 <div className="flex items-center mb-6 h-10 px-2 space-x-2">
                     <Zap className="h-6 w-6 text-white" />
-                    <span className="font-bold text-xl text-white">BROCODE</span>
+                    <ShinyText
+                        text="BROCODE"
+                        className="font-bold text-xl"
+                        style={{ fontFamily: "'Zen Dots', cursive" }}
+                        speed={3}
+                        color="#ffffff"
+                        shineColor="#6366f1"
+                    />
                 </div>
 
                 <div className="px-2 mb-6">
@@ -135,7 +148,14 @@ const DashboardLayout: React.FC = () => {
             {/* Main Content */}
             <main className="flex-1 flex flex-col overflow-hidden">
                 <header className="md:hidden flex justify-between items-center p-4 bg-[#111111] border-b border-zinc-800">
-                    <h1 className="font-bold text-xl">BROCODE</h1>
+                    <ShinyText
+                        text="BROCODE"
+                        className="font-bold text-xl"
+                        style={{ fontFamily: "'Zen Dots', cursive" }}
+                        speed={3}
+                        color="#ffffff"
+                        shineColor="#6366f1"
+                    />
                     <div className="flex items-center space-x-3">
                         <button
                             onClick={logout}
@@ -169,6 +189,42 @@ const DashboardLayout: React.FC = () => {
                     {allNavItemsForMobile.map(item => <NavItem key={item.path} item={item} isMobile={true} />)}
                 </nav>
             </div>
+
+            {/* Download App Banner for Mobile */}
+            {showDownloadBanner && (
+                <div className="md:hidden fixed top-14 left-2 right-2 z-50">
+                    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-3 shadow-lg flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Download size={24} className="text-white" />
+                            <div>
+                                <p className="text-white text-sm font-semibold">Get the BroCode App!</p>
+                                <p className="text-white/70 text-xs">Better experience on mobile</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <a
+                                href="#"
+                                className="bg-white text-indigo-600 px-3 py-1.5 rounded-full text-xs font-bold"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    alert('App download link will be available soon!');
+                                }}
+                            >
+                                Download
+                            </a>
+                            <button
+                                onClick={() => {
+                                    setShowDownloadBanner(false);
+                                    localStorage.setItem('downloadBannerDismissed', 'true');
+                                }}
+                                className="p-1 hover:bg-white/20 rounded-full"
+                            >
+                                <X size={18} className="text-white" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

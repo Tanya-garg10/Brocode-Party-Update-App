@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -16,11 +17,14 @@ import Modal from "../components/common/Modal";
 import Input from "../components/common/Input";
 import GlowButton from "../components/common/GlowButton";
 import Textarea from "../components/common/Textarea";
-import { spotService, invitationService, paymentService, notificationService } from "../services/database";
+import { spotService, invitationService, paymentService, notificationService, profileService } from "../services/database";
 import { supabase } from "../services/supabase";
 import { checkDatabaseSetup, getSetupInstructions } from "../services/dbCheck";
 import { useNotifications } from "../contexts/NotificationsContext";
 import { format } from "date-fns";
+import ShinyText from "../components/common/ShinyText";
+import GradientText from "../components/common/GradientText";
+import StarBorder from "../components/common/StarBorder";
 
 declare const google: any;
 
@@ -114,7 +118,7 @@ const HomePage: React.FC = () => {
           if (payload.eventType === 'INSERT') {
             // Notify all users in database
             notificationService.createNotificationForAllUsers(
-              "New Spot Created!", 
+              "New Spot Created!",
               `A new spot has been created at ${payload.new.location}`
             ).catch(err => console.error('Error notifying all users:', err));
             // Also notify current user locally
@@ -137,7 +141,7 @@ const HomePage: React.FC = () => {
             };
             // Notify all users about RSVP updates
             notificationService.createNotificationForAllUsers(
-              "RSVP Updated", 
+              "RSVP Updated",
               `Someone ${statusMessages[payload.new.status] || 'updated their RSVP'}`
             ).catch(err => console.error('Error notifying all users:', err));
             // Also notify current user locally
@@ -189,7 +193,7 @@ const HomePage: React.FC = () => {
           markerRef.current.addListener('dragend', async (e: any) => {
             const newLat = e.latLng.lat();
             const newLng = e.latLng.lng();
-            
+
             try {
               await spotService.updateSpot(spot.id, {
                 latitude: newLat,
@@ -206,12 +210,12 @@ const HomePage: React.FC = () => {
           mapInstance.current.addListener('click', async (e: any) => {
             const newLat = e.latLng.lat();
             const newLng = e.latLng.lng();
-            
+
             // Move marker to clicked location
             if (markerRef.current) {
               markerRef.current.setPosition({ lat: newLat, lng: newLng });
             }
-            
+
             try {
               await spotService.updateSpot(spot.id, {
                 latitude: newLat,
@@ -229,7 +233,7 @@ const HomePage: React.FC = () => {
         mapInstance.current.addListener('click', async (e: any) => {
           const newLat = e.latLng.lat();
           const newLng = e.latLng.lng();
-          
+
           // Create marker if it doesn't exist
           if (!markerRef.current) {
             markerRef.current = new google.maps.Marker({
@@ -241,7 +245,7 @@ const HomePage: React.FC = () => {
             markerRef.current.addListener('dragend', async (dragEvent: any) => {
               const dragLat = dragEvent.latLng.lat();
               const dragLng = dragEvent.latLng.lng();
-              
+
               try {
                 await spotService.updateSpot(spot.id, {
                   latitude: dragLat,
@@ -256,7 +260,7 @@ const HomePage: React.FC = () => {
           } else {
             markerRef.current.setPosition({ lat: newLat, lng: newLng });
           }
-          
+
           try {
             await spotService.updateSpot(spot.id, {
               latitude: newLat,
@@ -296,7 +300,7 @@ const HomePage: React.FC = () => {
     try {
       // Ensure profile.id is a valid UUID
       let userId = profile.id;
-      
+
       // If profile.id is not a UUID (like "admin"), get the UUID from database
       if (!userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
         const { data: dbProfile } = await supabase
@@ -304,7 +308,7 @@ const HomePage: React.FC = () => {
           .select('id')
           .or(`email.eq.${profile.email},phone.eq.${profile.phone},username.eq.${profile.username}`)
           .single();
-        
+
         if (dbProfile) {
           userId = dbProfile.id;
         } else {
@@ -354,7 +358,7 @@ const HomePage: React.FC = () => {
 
       // Notify all users about the new spot
       await notificationService.createNotificationForAllUsers(
-        "New Spot Created!", 
+        "New Spot Created!",
         `A new spot has been created at ${newSpotData.location} on ${new Date(newSpotData.date).toLocaleDateString()}`
       );
       // Also notify current user locally
@@ -370,7 +374,7 @@ const HomePage: React.FC = () => {
         latitude: 37.7749,
         longitude: -122.4194,
       });
-      
+
       // Refresh data to show the new spot
       await fetchData();
     } catch (error: any) {
@@ -400,11 +404,11 @@ const HomePage: React.FC = () => {
 
     // Otherwise, look it up in the database
     const cleanPhone = profile.phone ? profile.phone.replace(/\D/g, '') : '';
-    
+
     // Try to find user by phone, email, or username
     let dbProfile = null;
     let lookupError = null;
-    
+
     if (cleanPhone) {
       const { data, error } = await supabase
         .from('profiles')
@@ -417,7 +421,7 @@ const HomePage: React.FC = () => {
         lookupError = error;
       }
     }
-    
+
     if (!dbProfile && profile.email) {
       const { data, error } = await supabase
         .from('profiles')
@@ -428,7 +432,7 @@ const HomePage: React.FC = () => {
         dbProfile = data;
       }
     }
-    
+
     if (!dbProfile && profile.username) {
       const { data, error } = await supabase
         .from('profiles')
@@ -470,11 +474,11 @@ const HomePage: React.FC = () => {
           .select('id')
           .or(`phone.eq.${cleanPhone},email.eq.${profile.email || ''},username.eq.${profile.username}`)
           .maybeSingle();
-        
+
         if (finalLookup) {
           return finalLookup.id;
         }
-        
+
         throw new Error(`Unable to create or find user profile: ${createError.message}`);
       }
 
@@ -490,16 +494,16 @@ const HomePage: React.FC = () => {
     status: InvitationStatus
   ) => {
     if (!profile || !spot) return;
-    
+
     try {
       await invitationService.updateInvitationStatus(invitationId, status);
-      
+
       // Create or update payment when user confirms
       if (status === InvitationStatus.CONFIRMED) {
         try {
           // Get UUID for user ID
           const userId = await getUserIdAsUUID(profile.id);
-          
+
           await paymentService.upsertPayment({
             spot_id: spot.id,
             user_id: userId,
@@ -510,7 +514,7 @@ const HomePage: React.FC = () => {
           // Don't block RSVP update if payment creation fails
         }
       }
-      
+
       // Refresh data to show updated status immediately
       await fetchData();
     } catch (error: any) {
@@ -532,7 +536,7 @@ const HomePage: React.FC = () => {
         user_id: userId,
         status,
       });
-      
+
       // Create or update payment when user confirms
       if (status === InvitationStatus.CONFIRMED) {
         try {
@@ -546,7 +550,7 @@ const HomePage: React.FC = () => {
           // Don't block RSVP creation if payment creation fails
         }
       }
-      
+
       // Refresh data to show updated status
       await fetchData();
     } catch (error: any) {
@@ -622,7 +626,14 @@ const HomePage: React.FC = () => {
   return (
     <div className="space-y-8 max-w-5xl mx-auto pb-20">
       <header className="flex justify-between items-center">
-        <h1 className="text-4xl font-black">THE SPOT</h1>
+        <ShinyText
+          text="THE SPOT"
+          className="text-4xl font-black"
+          style={{ fontFamily: "'Zen Dots', cursive" }}
+          speed={3}
+          color="#ffffff"
+          shineColor="#6366f1"
+        />
         {isAdmin && (
           <GlowButton onClick={() => setCreateSpotModalOpen(true)}>
             New Meetup
@@ -654,17 +665,25 @@ const HomePage: React.FC = () => {
           ) : (
             <>
               {/* SPOT DETAILS */}
-              <Card>
+              <StarBorder color="#6366f1" speed="5s" className="w-full cursor-target">
                 <div className="space-y-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h2 className="text-2xl font-bold text-indigo-400 mb-2">{spot.location}</h2>
+                      <div className="inline-flex items-center px-4 py-2 bg-zinc-800/80 border border-zinc-700/50 rounded-full backdrop-blur-sm cursor-target">
+                        <ShinyText
+                          text={spot.location}
+                          className="text-lg font-bold"
+                          color="#9ca3af"
+                          shineColor="#ffffff"
+                          speed={2.5}
+                        />
+                      </div>
                       <p className="text-zinc-400">
-                        {new Date(spot.date).toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
+                        {new Date(spot.date).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
                         })} at {spot.timing}
                       </p>
                     </div>
@@ -710,22 +729,24 @@ const HomePage: React.FC = () => {
                   )}
                   <div className="flex items-center gap-4 text-sm">
                     <span className="text-zinc-400">Budget:</span>
-                    <span className="font-bold text-white">₹{spot.budget} / person</span>
+                    <span className="font-bold text-white">Rs.{spot.budget} / person</span>
                   </div>
                 </div>
-              </Card>
+              </StarBorder>
 
-              <Card className="h-[250px] md:h-[350px] p-0 overflow-hidden relative">
-                {isAdmin && (
-                  <div className="absolute top-2 left-2 z-10 bg-black/70 text-white text-xs px-3 py-2 rounded-lg backdrop-blur-sm">
-                    Admin: Click on map or drag marker to update location
-                  </div>
-                )}
-                <div ref={mapRef} className="w-full h-full" />
-              </Card>
+              <StarBorder color="#6366f1" speed="6s" className="w-full cursor-target">
+                <div className="h-[250px] md:h-[350px] overflow-hidden relative rounded-[16px]">
+                  {isAdmin && (
+                    <div className="absolute top-2 left-2 z-10 bg-black/70 text-white text-xs px-3 py-2 rounded-lg backdrop-blur-sm">
+                      Admin: Click on map or drag marker to update location
+                    </div>
+                  )}
+                  <div ref={mapRef} className="w-full h-full" />
+                </div>
+              </StarBorder>
 
               {/* RSVP CONFIRMATION SECTION */}
-              <Card className="p-4 md:p-6">
+              <StarBorder color="#6366f1" speed="7s" className="w-full cursor-target">
                 <h2 className="text-base md:text-lg font-bold mb-3 md:mb-4">Confirm Your Attendance</h2>
                 <p className="text-xs md:text-sm text-zinc-400 mb-4">
                   Let us know if you're coming to this spot!
@@ -739,14 +760,14 @@ const HomePage: React.FC = () => {
                         onClick={() =>
                           handleRSVP(myInvitation.id, InvitationStatus.CONFIRMED)
                         }
-                        variant={myInvitation.status === InvitationStatus.CONFIRMED ? "default" : "secondary"}
+                        variant={myInvitation.status === InvitationStatus.CONFIRMED ? "primary" : "secondary"}
                         className="flex-1 min-w-[100px] text-xs md:text-sm"
                       >
                         ✓ Confirm
                       </Button>
                       <Button
                         size="sm"
-                        variant={myInvitation.status === InvitationStatus.DECLINED ? "default" : "secondary"}
+                        variant={myInvitation.status === InvitationStatus.DECLINED ? "primary" : "secondary"}
                         onClick={() =>
                           handleRSVP(myInvitation.id, InvitationStatus.DECLINED)
                         }
@@ -756,7 +777,7 @@ const HomePage: React.FC = () => {
                       </Button>
                       <Button
                         size="sm"
-                        variant={myInvitation.status === InvitationStatus.PENDING ? "default" : "secondary"}
+                        variant={myInvitation.status === InvitationStatus.PENDING ? "primary" : "secondary"}
                         onClick={() =>
                           handleRSVP(myInvitation.id, InvitationStatus.PENDING)
                         }
@@ -796,12 +817,12 @@ const HomePage: React.FC = () => {
                     </Button>
                   </div>
                 )}
-              </Card>
+              </StarBorder>
 
               {/* RSVP STATUS - REAL-TIME UPDATES */}
               <Card className="p-4 md:p-6">
                 <h2 className="text-base md:text-lg font-bold mb-4">Who's Coming? ({invitations.filter(i => i.status === InvitationStatus.CONFIRMED).length})</h2>
-                
+
                 <div className="space-y-3">
                   {invitations
                     .sort((a, b) => {
@@ -814,7 +835,7 @@ const HomePage: React.FC = () => {
                         key={inv.id}
                         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-zinc-900/50 rounded-lg border border-white/5"
                       >
-                        <div 
+                        <div
                           className="flex items-center gap-3 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => window.location.href = `/dashboard/profile/${inv.profiles.id}`}
                         >
@@ -831,19 +852,37 @@ const HomePage: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 flex-shrink-0">
-                          <span className={`px-2 md:px-3 py-1 rounded-full text-xs font-bold uppercase whitespace-nowrap ${
-                            inv.status === InvitationStatus.CONFIRMED
-                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                              : inv.status === InvitationStatus.PENDING
+                          <span className={`px-2 md:px-3 py-1 rounded-full text-xs font-bold uppercase whitespace-nowrap ${inv.status === InvitationStatus.CONFIRMED
+                            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                            : inv.status === InvitationStatus.PENDING
                               ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                               : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                          }`}>
+                            }`}>
                             {inv.status}
                           </span>
+                          {isAdmin && inv.profiles.id !== profile?.id && (
+                            <button
+                              onClick={async () => {
+                                if (confirm(`Are you sure you want to delete user ${inv.profiles.name}? This will remove all their data.`)) {
+                                  try {
+                                    await profileService.deleteProfile(inv.profiles.id);
+                                    alert('User deleted successfully');
+                                    window.location.reload();
+                                  } catch (err: any) {
+                                    alert(`Failed to delete user: ${err.message}`);
+                                  }
+                                }
+                              }}
+                              className="p-2 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded-lg transition-colors"
+                              title="Delete User"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
-                  
+
                   {invitations.length === 0 && (
                     <div className="text-center py-8 text-zinc-500 text-sm">
                       No responses yet. Be the first to confirm!
@@ -959,8 +998,8 @@ const HomePage: React.FC = () => {
           />
           <div className="flex gap-2">
             <Button type="submit" className="flex-1">Update Spot</Button>
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               variant="secondary"
               onClick={() => {
                 setIsEditSpotModalOpen(false);

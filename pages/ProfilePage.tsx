@@ -16,6 +16,7 @@ import Textarea from '../components/common/Textarea';
 import AvatarPicker from '../components/common/AvatarPicker';
 import { profileService, momentService, spotService } from '../services/database';
 import { supabase } from '../services/supabase';
+import ImageTrail from '../components/common/ImageTrail';
 
 type ProfileFormData = {
     name: string;
@@ -110,7 +111,7 @@ const ProfileForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         // Validate all fields
         const newErrors: Partial<Record<keyof ProfileFormData, string>> = {};
         (Object.keys(formData) as Array<keyof Omit<ProfileFormData, 'profile_pic_url'>>).forEach((key) => {
@@ -152,15 +153,15 @@ const ProfileForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
-            <AvatarPicker label="BRO-DENTITY" initialValue={formData.profile_pic_url} onChange={(url) => setFormData(p => ({...p, profile_pic_url: url}))} />
+            <AvatarPicker label="BRO-DENTITY" initialValue={formData.profile_pic_url} onChange={(url) => setFormData(p => ({ ...p, profile_pic_url: url }))} />
             <div>
-                <Input 
-                    label="Username" 
-                    name="username" 
-                    value={formData.username} 
+                <Input
+                    label="Username"
+                    name="username"
+                    value={formData.username}
                     onChange={handleChange}
                     onBlur={handleUsernameBlur}
-                    icon={<Plus size={16}/>}
+                    icon={<Plus size={16} />}
                 />
                 {errors.username && (
                     <p className="text-red-400 text-xs mt-1">{errors.username}</p>
@@ -169,11 +170,11 @@ const ProfileForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
                     <p className="text-zinc-400 text-xs mt-1">Checking availability...</p>
                 )}
             </div>
-            <Input label="Name" name="name" value={formData.name} onChange={handleChange} icon={<Plus size={16}/>} />
+            <Input label="Name" name="name" value={formData.name} onChange={handleChange} icon={<Plus size={16} />} />
             {errors.name && (
                 <p className="text-red-400 text-xs -mt-4">{errors.name}</p>
             )}
-            <Input label="Handle" name="location" value={formData.location} onChange={handleChange} icon={<MapPin size={16}/>} />
+            <Input label="Handle" name="location" value={formData.location} onChange={handleChange} icon={<MapPin size={16} />} />
             {errors.location && (
                 <p className="text-red-400 text-xs -mt-4">{errors.location}</p>
             )}
@@ -201,10 +202,10 @@ const MomentForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
 
         // Otherwise, look it up in the database
         const cleanPhone = profile.phone ? profile.phone.replace(/\D/g, '') : '';
-        
+
         // Try to find user by phone, email, or username
         let dbProfile = null;
-        
+
         if (cleanPhone) {
             const { data, error } = await supabase
                 .from('profiles')
@@ -215,7 +216,7 @@ const MomentForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
                 dbProfile = data;
             }
         }
-        
+
         if (!dbProfile && profile.email) {
             const { data, error } = await supabase
                 .from('profiles')
@@ -226,7 +227,7 @@ const MomentForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
                 dbProfile = data;
             }
         }
-        
+
         if (!dbProfile && profile.username) {
             const { data, error } = await supabase
                 .from('profiles')
@@ -277,7 +278,7 @@ const MomentForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
                 {imagePreview ? (
                     <div className="relative w-full aspect-square rounded-3xl overflow-hidden border-2 border-indigo-500/30">
                         <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
-                        <button onClick={() => setImagePreview(null)} className="absolute top-4 right-4 bg-black/50 p-2 rounded-full"><X size={20}/></button>
+                        <button onClick={() => setImagePreview(null)} className="absolute top-4 right-4 bg-black/50 p-2 rounded-full"><X size={20} /></button>
                     </div>
                 ) : (
                     <label className="w-full aspect-square rounded-3xl border-2 border-dashed border-zinc-700 bg-zinc-900/50 flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-800 transition-colors">
@@ -304,6 +305,7 @@ const ProfilePage: React.FC = () => {
     const [trips, setTrips] = useState<Spot[]>([]);
     const [moments, setMoments] = useState<Moment[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isImageTrailOpen, setIsImageTrailOpen] = useState(false);
     const isViewingOwnProfile = !viewUserId || viewUserId === currentProfile?.id;
 
     // Helper function to get UUID from profile ID
@@ -320,10 +322,10 @@ const ProfilePage: React.FC = () => {
 
         // Otherwise, look it up in the database
         const cleanPhone = profileRef.phone ? profileRef.phone.replace(/\D/g, '') : '';
-        
+
         // Try to find user by phone, email, or username
         let dbProfile = null;
-        
+
         if (cleanPhone) {
             const { data, error } = await supabase
                 .from('profiles')
@@ -334,7 +336,7 @@ const ProfilePage: React.FC = () => {
                 dbProfile = data;
             }
         }
-        
+
         if (!dbProfile && profileRef.email) {
             const { data, error } = await supabase
                 .from('profiles')
@@ -345,7 +347,7 @@ const ProfilePage: React.FC = () => {
                 dbProfile = data;
             }
         }
-        
+
         if (!dbProfile && profileRef.username) {
             const { data, error } = await supabase
                 .from('profiles')
@@ -372,7 +374,7 @@ const ProfilePage: React.FC = () => {
                 setLoading(false);
                 return;
             }
-            
+
             setLoading(true);
             try {
                 let targetUserId: string;
@@ -477,12 +479,12 @@ const ProfilePage: React.FC = () => {
                         </button>
                     </div>
                 )}
-                
+
                 <div className="relative mb-6">
                     <div className="absolute -inset-4 bg-gradient-to-tr from-indigo-500 to-pink-500 rounded-full blur-2xl opacity-20" />
-                    <img 
-                        src={profile.profile_pic_url || getPlaceholderImage(profile.username)} 
-                        className="w-32 h-32 rounded-full border-4 border-[#111] shadow-2xl object-cover relative z-10" 
+                    <img
+                        src={profile.profile_pic_url || getPlaceholderImage(profile.username)}
+                        className="w-32 h-32 rounded-full border-4 border-[#111] shadow-2xl object-cover relative z-10"
                         alt={profile.name}
                         onError={(e) => {
                             const target = e.target as HTMLImageElement;
@@ -490,15 +492,15 @@ const ProfilePage: React.FC = () => {
                         }}
                     />
                 </div>
-                
+
                 <h1 className="text-4xl font-black text-white tracking-tighter">@{profile.username}</h1>
                 <p className="text-zinc-500 font-bold uppercase tracking-widest text-[10px] mt-2">{profile.name} • {profile.location}</p>
             </header>
 
             <div className="flex bg-[#111] p-1.5 rounded-2xl mb-10 border border-white/5">
                 {(['Moments', 'Details'] as const).map(tab => (
-                    <button 
-                        key={tab} 
+                    <button
+                        key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all ${activeTab === tab ? 'bg-white text-black' : 'text-zinc-500 hover:text-zinc-300'}`}
                     >
@@ -512,11 +514,11 @@ const ProfilePage: React.FC = () => {
                     {activeTab === 'Moments' ? (
                         <motion.div key="moments" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 md:grid-cols-3 gap-4">
                             {isViewingOwnProfile && (
-                                <button 
+                                <button
                                     onClick={() => setIsMomentModalOpen(true)}
                                     className="aspect-square bg-zinc-900 rounded-3xl border-2 border-dashed border-zinc-800 flex flex-col items-center justify-center text-zinc-600 hover:text-indigo-400 hover:border-indigo-500/30 transition-all group"
                                 >
-                                    <Plus size={32} className="group-hover:scale-110 transition-transform"/>
+                                    <Plus size={32} className="group-hover:scale-110 transition-transform" />
                                     <span className="text-[9px] font-black uppercase tracking-widest mt-2">Add Intel</span>
                                 </button>
                             )}
@@ -529,11 +531,20 @@ const ProfilePage: React.FC = () => {
                                     </div>
                                     {isViewingOwnProfile && (
                                         <button onClick={() => momentService.deleteMoment(moment.id).then(fetchData).catch(err => alert(`Failed to delete: ${err.message}`))} className="absolute top-3 right-3 p-2 bg-black/50 backdrop-blur-md rounded-xl text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Trash2 size={14}/>
+                                            <Trash2 size={14} />
                                         </button>
                                     )}
                                 </div>
                             ))}
+                            {moments.length > 0 && (
+                                <button
+                                    onClick={() => setIsImageTrailOpen(true)}
+                                    className="aspect-square bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl flex flex-col items-center justify-center text-white hover:from-indigo-500 hover:to-purple-600 transition-all group shadow-lg"
+                                >
+                                    <span className="text-2xl group-hover:scale-110 transition-transform">✨</span>
+                                    <span className="text-[9px] font-black uppercase tracking-widest mt-2">View Trail</span>
+                                </button>
+                            )}
                         </motion.div>
                     ) : (
                         <motion.div key="details" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -563,9 +574,18 @@ const ProfilePage: React.FC = () => {
                 <ProfileForm onSave={() => { setIsEditModalOpen(false); fetchData(); }} />
             </Modal>
             {isViewingOwnProfile && (
-                <>
-                </>
+                <Modal isOpen={isMomentModalOpen} onClose={() => setIsMomentModalOpen(false)} title="CAPTURE INTEL">
+                    <MomentForm onSave={() => { setIsMomentModalOpen(false); fetchData(); }} />
+                </Modal>
             )}
+
+            {/* Image Trail Modal */}
+            <Modal isOpen={isImageTrailOpen} onClose={() => setIsImageTrailOpen(false)} title="MOMENTS TRAIL">
+                <div className="h-[400px] w-full">
+                    <ImageTrail items={moments.map(m => m.image_url)} />
+                </div>
+                <p className="text-center text-zinc-500 text-xs mt-4">Move your mouse around to reveal moments</p>
+            </Modal>
         </div>
     );
 };
